@@ -320,7 +320,7 @@ void XrComponent::BeginFrame(const std::vector<grfx::SwapchainPtr>& swapchains, 
 
     // UI composition layer
     if (mCreateInfo.enableQuadLayer) {
-        mCompositionLayerQuad.layerFlags                = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+        mCompositionLayerQuad.layerFlags                = 0;
         mCompositionLayerQuad.space                     = mUISpace;
         mCompositionLayerQuad.eyeVisibility             = XR_EYE_VISIBILITY_BOTH;
         mCompositionLayerQuad.subImage.swapchain        = swapchains[layerQuadStartIndex]->GetXrSwapchain();
