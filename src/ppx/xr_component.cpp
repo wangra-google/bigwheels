@@ -418,7 +418,7 @@ glm::mat4 XrComponent::GetProjectionMatrixForCurrentView(float nearZ, float farZ
     const float mat[16] = {
         a00,    0,      0,      0,
         0,      a11,    0,      0,
-        a20,    a21,    a22,    -1,
+        a20,    a21,    a22,    1,
         0,      0,      a32,    0,
     };
     // clang-format on
