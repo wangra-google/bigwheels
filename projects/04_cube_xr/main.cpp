@@ -307,9 +307,6 @@ void ProjApp::Render()
         PPX_CHECKED_CALL(frame.imageAcquiredFence->WaitAndReset());
     }
 
-    // Wait for and reset render complete fence.
-    PPX_CHECKED_CALL(frame.renderCompleteFence->WaitAndReset());
-
     // Update uniform buffer.
     {
         float    t = GetElapsedSeconds();
@@ -329,6 +326,9 @@ void ProjApp::Render()
         memcpy(pData, &mat, sizeof(mat));
         mUniformBuffer->UnmapMemory();
     }
+
+    // Wait for and reset render complete fence.
+    PPX_CHECKED_CALL(frame.renderCompleteFence->WaitAndReset());
 
     // Build command buffer.
     PPX_CHECKED_CALL(frame.cmd->Begin());
