@@ -70,7 +70,7 @@ void ProjApp::Config(ppx::ApplicationSettings& settings)
     settings.grfx.enableDebug           = false;
     settings.enableXR                   = true;
     settings.enableXRDebugCapture       = true;
-    settings.grfx.ui.pos                = {0.1f, -0.2f, -0.5f};
+    settings.grfx.ui.pos                = {0.1f, -0.2f, -0.0f};
     settings.grfx.ui.size               = {1.f, 1.f};
 #if defined(USE_DXIL)
     settings.grfx.enableDXIL = true;
