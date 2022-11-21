@@ -381,7 +381,7 @@ glm::mat4 XrComponent::GetViewMatrixForCurrentView() const
     const XrView&  view = mViews[mCurrentViewIndex];
     const XrPosef& pose = view.pose;
     // OpenXR is using right handed system which is the same as Vulkan
-    glm::quat quat         = glm::quat(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
+    glm::quat quat         = glm::quat(pose.orientation.w, pose.orientation.x, pose.orientation.z, pose.orientation.y);
     glm::mat4 rotation     = glm::mat4_cast(quat);
     glm::vec3 position     = glm::vec3(pose.position.x, pose.position.y, pose.position.z);
     glm::mat4 translation  = glm::translate(glm::mat4(1.f), position);
