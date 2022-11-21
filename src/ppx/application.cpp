@@ -1296,7 +1296,7 @@ int Application::Run(int argc, char** argv)
         createInfo.appName               = mSettings.appName;
         createInfo.colorFormat           = grfx::FORMAT_B8G8R8A8_SRGB;
         createInfo.depthFormat           = grfx::FORMAT_D32_FLOAT;
-        createInfo.refSpaceType          = XrRefSpace::XR_STAGE;
+        createInfo.refSpaceType          = XrRefSpace::XR_VIEW;
         createInfo.viewConfigType        = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
         createInfo.enableDebug           = false;
         createInfo.enableQuadLayer       = mSettings.enableImGui;
