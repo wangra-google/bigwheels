@@ -1653,7 +1653,7 @@ void Application::DrawDebugInfo(std::function<void(void)> drawAdditionalFn)
     if (!mImGui) {
         return;
     }
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, {static_cast<float>(GetWindowWidth() / 2), static_cast<float>(GetWindowHeight() / 2)});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, {static_cast<float>(GetWindowWidth() / 200), static_cast<float>(GetWindowHeight() / 200)});
     if (ImGui::Begin("Debug Info")) {
         ImGui::Columns(2);
 
