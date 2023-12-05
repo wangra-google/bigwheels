@@ -27,31 +27,6 @@ option(PPX_BUILD_PROJECTS "Build sample projets" ON)
 option(PPX_BUILD_BENCHMARKS "Build benchmarks projects" ON)
 
 # ------------------------------------------------------------------------------
-# Detect DXC presence. This is REQUIRED to compile DXIL and SPIR-V shaders.
-# ------------------------------------------------------------------------------
-
-message(CHECK_START "Looking for DXC")
-if (NOT DXC_PATH)
-    message(STATUS "DXC_PATH not set. Looking for Vulkan SDK path in ENV")
-    if (DEFINED ENV{VULKAN_SDK})
-        if (CMAKE_HOST_WIN32)
-            set(DXC_PATH "$ENV{VULKAN_SDK}\\Bin\\dxc.exe")
-        else ()
-            set(DXC_PATH "$ENV{VULKAN_SDK}/bin/dxc")
-        endif ()
-    endif ()
-endif ()
-
-if ((NOT DXC_PATH) OR (NOT EXISTS "${DXC_PATH}"))
-    message(CHECK_FAIL "Cannot open DXC at ${DXC_PATH}")
-    message(FATAL_ERROR "DXC is required.")
-else ()
-    message(CHECK_PASS "found")
-endif ()
-
-message(STATUS "DXC_PATH: ${DXC_PATH}")
-
-# ------------------------------------------------------------------------------
 # Configure target platform.
 # ------------------------------------------------------------------------------
 
@@ -123,6 +98,7 @@ else()
         -Wno-deprecated-copy \
         -Wno-deprecated-enum-enum-conversion \
         -Wno-pointer-bool-conversion \
+        -Wno-unused-result \
     ")
 
     if (NOT PPX_BUILD_XR)
