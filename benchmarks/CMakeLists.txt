@@ -12,14 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 project(benchmarks)
-
-add_subdirectory(draw_call)
-add_subdirectory(compute_operations)
-add_subdirectory(headless_compute)
-add_subdirectory(primitive_assembly)
-add_subdirectory(render_target)
-add_subdirectory(texture_load)
-add_subdirectory(texture_sample)
-add_subdirectory(texture_transfer_cpu_to_gpu)
-add_subdirectory(overdraw)
 add_subdirectory(graphics_pipeline)
