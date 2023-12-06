@@ -28,7 +28,6 @@
 #include <vector>
 #include <unordered_map>
 
-static constexpr uint32_t kMaxSphereInstanceCount  = 3000;
 static constexpr uint32_t kSeed                    = 89977;
 static constexpr uint32_t kMaxFullscreenQuadsCount = 1000;
 

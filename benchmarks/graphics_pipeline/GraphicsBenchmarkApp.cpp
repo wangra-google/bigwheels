@@ -34,6 +34,7 @@ static constexpr size_t SPHERE_METAL_ROUGHNESS_SAMPLED_IMAGE_REGISTER = 5;
 static constexpr size_t SPHERE_METAL_ROUGHNESS_SAMPLER_REGISTER       = 6;
 
 static constexpr size_t QUADS_SAMPLED_IMAGE_REGISTER = 0;
+static constexpr uint32_t kMaxSphereInstanceCount  = 100;
 
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;

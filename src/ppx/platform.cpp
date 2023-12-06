@@ -15,12 +15,6 @@
 #include "ppx/platform.h"
 #include "ppx/string_util.h"
 
-#if defined(PPX_ANDROID)
-// TODO: Fill out ANDROID-specific header
-#else
-#include "cpuinfo_x86.h"
-#endif
-
 #if defined(PPX_MSW)
 #include <Windows.h>
 #endif
@@ -32,9 +26,7 @@ static Platform sPlatform = Platform();
 // -------------------------------------------------------------------------------------------------
 // CpuInfo
 // -------------------------------------------------------------------------------------------------
-#if defined(PPX_ANDROID)
-// TODO: Fill out ANDROID-specific info
-#else
+#if defined(PPX_MSW)
 const char* GetX86LongMicroarchitectureName(cpu_features::X86Microarchitecture march)
 {
     // clang-format off
@@ -121,9 +113,7 @@ CpuInfo GetX86CpuInfo()
 // -------------------------------------------------------------------------------------------------
 Platform::Platform()
 {
-#if defined(PPX_ANDROID)
-    // Call ANDROID-specific function
-#else
+#if defined(PPX_MSW)
     mCpuInfo = GetX86CpuInfo();
 #endif
 }
@@ -134,9 +124,7 @@ Platform::~Platform()
 
 PlatformId Platform::GetPlatformId()
 {
-#if defined(PPX_LINUX)
-    return ppx::PLATFORM_ID_LINUX;
-#elif defined(PPX_MSW)
+#if defined(PPX_MSW)
     return ppx::PLATFORM_ID_MSW;
 #else
     return ppx::PLATFORM_ID_UNDEFINED;
@@ -145,9 +133,7 @@ PlatformId Platform::GetPlatformId()
 
 const char* Platform::GetPlatformString()
 {
-#if defined(PPX_LINUX)
-    return "Linux";
-#elif defined(PPX_MSW)
+#if defined(PPX_MSW)
     return "Windows";
 #endif
     return "<unknown platform>";
