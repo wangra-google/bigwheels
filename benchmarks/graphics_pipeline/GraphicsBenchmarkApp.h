@@ -481,7 +481,8 @@ private:
         enum MetricsType : size_t
         {
             kTypeCPUSubmissionTime = 0,
-            kTypeBandwidth,
+            kTypeWriteBandwidth,
+            kTypeReadBandwidth,
             kCount
         };
 
