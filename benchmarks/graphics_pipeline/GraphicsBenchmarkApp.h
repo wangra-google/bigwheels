@@ -438,6 +438,7 @@ private:
     bool                              mEnableMouseMovement = true;
     uint64_t                          mGpuWorkDuration;
     grfx::SamplerPtr                  mLinearSampler;
+    grfx::SamplerPtr                  mPointSampler;
     grfx::DescriptorPoolPtr           mDescriptorPool;
     std::vector<OffscreenFrame>       mOffscreenFrame;
     double                            mCPUSubmissionTime = 0.0;
