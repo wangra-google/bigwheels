@@ -1597,8 +1597,7 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
     PPX_CHECKED_CALL(frame.cmd->Begin());
 
     // TODO(wangra): render to texture
-    // if (bRT)
-    {
+    if (bRT) {
         bRT             = false;
         uint32_t width  = RT_WIDTH;
         uint32_t height = RT_HEIGHT;
