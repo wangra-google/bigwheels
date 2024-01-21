@@ -282,7 +282,7 @@ private:
         grfx::BufferPtr                     vertexBuffer;
         grfx::VertexBinding                 vertexBinding;
         grfx::DescriptorSetLayoutPtr        descriptorSetLayout;
-        std::vector<grfx::DescriptorSetPtr> descriptorSets;
+        std::vector<grfx::DescriptorSetPtr> descriptorSets[2];
     };
 
     struct LOD
