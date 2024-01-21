@@ -524,6 +524,8 @@ private:
     std::shared_ptr<KnobDropdown<grfx::Format>>        pFramebufferFormat;
     std::shared_ptr<KnobDropdown<std::pair<int, int>>> pResolution;
 
+    bool bRT = true;
+
 private:
     // =====================================================================
     // SETUP (One-time setup for objects)

@@ -1446,8 +1446,7 @@ void GraphicsBenchmarkApp::DestroyOffscreenFrame(OffscreenFrame& frame)
         GetDevice()->DestroyRenderTargetView(rtv);
     }
 
-    if (frame.depthStencilView)
-    {
+    if (frame.depthStencilView) {
         GetDevice()->DestroyDepthStencilView(frame.depthStencilView);
         GetDevice()->DestroyImage(frame.depthImage);
     }
@@ -1594,7 +1593,8 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
     PPX_CHECKED_CALL(frame.cmd->Begin());
 
     // TODO(wangra): render to texture
-    {
+    if (bRT) {
+        bRT             = false;
         uint32_t width  = RT_WIDTH;
         uint32_t height = RT_HEIGHT;
         frame.cmd->SetScissors({0, 0, width, height});
