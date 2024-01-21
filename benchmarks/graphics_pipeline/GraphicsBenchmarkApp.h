@@ -40,6 +40,8 @@ static constexpr uint32_t kDebugColorPushConstantCount = sizeof(float4) / sizeof
 static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
 static constexpr const char* kQuadTextureFile = "benchmarks/textures/resolution.jpg";
 
+static constexpr uint32_t kRTCount = 5;
+
 enum class DebugView
 {
     DISABLED = 0,
@@ -391,17 +393,17 @@ private:
         grfx::Format colorFormat;
         grfx::Format depthFormat;
 
-        grfx::RenderPassPtr loadRenderPass;
-        grfx::RenderPassPtr clearRenderPass;
-        grfx::RenderPassPtr noloadRenderPass;
+        grfx::RenderPassPtr loadRenderPass[kRTCount];
+        grfx::RenderPassPtr clearRenderPass[kRTCount];
+        grfx::RenderPassPtr noloadRenderPass[kRTCount];
 
-        grfx::RenderTargetViewPtr renderTargetViews[3];
+        grfx::RenderTargetViewPtr renderTargetViews[kRTCount][3];
         grfx::DepthStencilViewPtr depthStencilView;
         // The actual image
         grfx::ImagePtr depthImage;
-        grfx::ImagePtr colorImage;
+        grfx::ImagePtr colorImage[kRTCount];
 
-        grfx::TexturePtr       blitSource;
+        grfx::TexturePtr       blitSource[kRTCount];
         grfx::DescriptorSetPtr blitDescriptorSet;
     };
 
@@ -618,7 +620,7 @@ private:
     void         DestroyOffscreenFrame(OffscreenFrame&);
     Result       CreateBlitContext(BlitContext& blit);
     RenderPasses SwapchainRenderPasses(grfx::SwapchainPtr swapchain, uint32_t imageIndex);
-    RenderPasses OffscreenRenderPasses(const OffscreenFrame&);
+    RenderPasses OffscreenRenderPasses(const OffscreenFrame&, uint32_t rt);
     grfx::Format RenderFormat();
     void         CreateColorsForDrawCalls();
 };

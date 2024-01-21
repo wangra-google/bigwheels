@@ -618,17 +618,17 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
                 PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE4_REGISTER, 0, mQuadsTexture4));
             }
             else {
-                constexpr size_t      imageCount          = 5;
-                grfx::WriteDescriptor write[imageCount]   = {};
-                uint32_t              binding[imageCount] = {QUADS_SAMPLED_IMAGE_REGISTER, QUADS_SAMPLED_IMAGE1_REGISTER, QUADS_SAMPLED_IMAGE2_REGISTER, QUADS_SAMPLED_IMAGE3_REGISTER, QUADS_SAMPLED_IMAGE4_REGISTER};
-                for (auto k = 0; k < imageCount; ++k) {
-                    write[k].binding    = binding[k];
-                    write[k].arrayIndex = 0;
-                    write[k].type       = grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-                    write[k].pImageView = mOffscreenFrame[0].blitSource->GetSampledImageView();
+                grfx::WriteDescriptor write[kRTCount]   = {};
+                uint32_t              binding[kRTCount] = {QUADS_SAMPLED_IMAGE_REGISTER, QUADS_SAMPLED_IMAGE1_REGISTER, QUADS_SAMPLED_IMAGE2_REGISTER, QUADS_SAMPLED_IMAGE3_REGISTER, QUADS_SAMPLED_IMAGE4_REGISTER};
+                for (auto rt = 0; rt < kRTCount; ++rt) {
+                    write[rt].binding    = binding[rt];
+                    write[rt].arrayIndex = 0;
+                    write[rt].type       = grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+                    // TODO(wangra)
+                    write[rt].pImageView = mOffscreenFrame[0].blitSource[rt]->GetSampledImageView();
                 }
 
-                PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(imageCount, write));
+                PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(kRTCount, write));
             }
         }
     }
@@ -1183,7 +1183,7 @@ void GraphicsBenchmarkApp::Render()
     RenderPasses swapchainRenderPasses = SwapchainRenderPasses(swapchain, imageIndex);
     RenderPasses renderPasses          = swapchainRenderPasses;
     if (pRenderOffscreen->GetValue()) {
-        renderPasses = OffscreenRenderPasses(mOffscreenFrame[0]);
+        renderPasses = OffscreenRenderPasses(mOffscreenFrame[0], 0);
         if (pBlitOffscreen->GetValue()) {
             renderPasses.uiRenderPass      = swapchainRenderPasses.uiRenderPass;
             renderPasses.uiClearRenderPass = swapchainRenderPasses.uiClearRenderPass;
@@ -1423,12 +1423,12 @@ ppx::Result GraphicsBenchmarkApp::CreateBlitContext(BlitContext& blit)
     return ppx::SUCCESS;
 }
 
-GraphicsBenchmarkApp::RenderPasses GraphicsBenchmarkApp::OffscreenRenderPasses(const OffscreenFrame& frame)
+GraphicsBenchmarkApp::RenderPasses GraphicsBenchmarkApp::OffscreenRenderPasses(const OffscreenFrame& frame, uint32_t rt)
 {
     return RenderPasses{
-        frame.loadRenderPass,
-        frame.clearRenderPass,
-        frame.noloadRenderPass,
+        frame.loadRenderPass[rt],
+        frame.clearRenderPass[rt],
+        frame.noloadRenderPass[rt],
         nullptr,
         nullptr,
         nullptr,
@@ -1438,12 +1438,17 @@ GraphicsBenchmarkApp::RenderPasses GraphicsBenchmarkApp::OffscreenRenderPasses(c
 
 void GraphicsBenchmarkApp::DestroyOffscreenFrame(OffscreenFrame& frame)
 {
-    GetDevice()->DestroyRenderPass(frame.loadRenderPass);
-    GetDevice()->DestroyRenderPass(frame.clearRenderPass);
-    GetDevice()->DestroyRenderPass(frame.noloadRenderPass);
+    for (auto rt = 0; rt < kRTCount; ++rt) {
+        GetDevice()->DestroyRenderPass(frame.loadRenderPass[rt]);
+        GetDevice()->DestroyRenderPass(frame.clearRenderPass[rt]);
+        GetDevice()->DestroyRenderPass(frame.noloadRenderPass[rt]);
 
-    for (auto& rtv : frame.renderTargetViews) {
-        GetDevice()->DestroyRenderTargetView(rtv);
+        for (auto& rtv : frame.renderTargetViews[rt]) {
+            GetDevice()->DestroyRenderTargetView(rtv);
+        }
+
+        GetDevice()->DestroyTexture(frame.blitSource[rt]);
+        GetDevice()->DestroyImage(frame.colorImage[rt]);
     }
 
     if (frame.depthStencilView) {
@@ -1452,9 +1457,6 @@ void GraphicsBenchmarkApp::DestroyOffscreenFrame(OffscreenFrame& frame)
     }
 
     GetDevice()->FreeDescriptorSet(frame.blitDescriptorSet);
-    GetDevice()->DestroyTexture(frame.blitSource);
-
-    GetDevice()->DestroyImage(frame.colorImage);
 
     // Reset all the pointers to nullptr.
     frame = {};
@@ -1463,13 +1465,13 @@ void GraphicsBenchmarkApp::DestroyOffscreenFrame(OffscreenFrame& frame)
 ppx::Result GraphicsBenchmarkApp::CreateOffscreenFrame(OffscreenFrame& frame, grfx::Format colorFormat, grfx::Format depthFormat, uint32_t width, uint32_t height)
 {
     frame = OffscreenFrame{width, height, colorFormat, depthFormat};
-    {
+    for (auto rt = 0; rt < kRTCount; ++rt) {
         grfx::ImageCreateInfo colorCreateInfo           = grfx::ImageCreateInfo::RenderTarget2D(width, height, colorFormat);
         colorCreateInfo.initialState                    = grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
         colorCreateInfo.usageFlags.bits.sampled         = true;
         colorCreateInfo.usageFlags.bits.colorAttachment = true;
         colorCreateInfo.usageFlags.bits.inputAttachment = true;
-        ppx::Result ppxres                              = GetDevice()->CreateImage(&colorCreateInfo, &frame.colorImage);
+        ppx::Result ppxres                              = GetDevice()->CreateImage(&colorCreateInfo, &frame.colorImage[rt]);
         if (ppxres != ppx::SUCCESS) {
             return ppxres;
         }
@@ -1497,56 +1499,58 @@ ppx::Result GraphicsBenchmarkApp::CreateOffscreenFrame(OffscreenFrame& frame, gr
         }
     }
 
-    struct
-    {
-        grfx::RenderPassPtr&       ptr;
-        grfx::AttachmentLoadOp     op;
-        grfx::RenderTargetViewPtr& rtv;
-    } renderpasses[] = {
-        {frame.loadRenderPass, grfx::ATTACHMENT_LOAD_OP_LOAD, frame.renderTargetViews[0]},
-        {frame.clearRenderPass, grfx::ATTACHMENT_LOAD_OP_CLEAR, frame.renderTargetViews[1]},
-        {frame.noloadRenderPass, grfx::ATTACHMENT_LOAD_OP_DONT_CARE, frame.renderTargetViews[2]},
-    };
+    for (auto rt = 0; rt < kRTCount; ++rt) {
+        struct
+        {
+            grfx::RenderPassPtr&       ptr;
+            grfx::AttachmentLoadOp     op;
+            grfx::RenderTargetViewPtr& rtv;
+        } renderpasses[] = {
+            {frame.loadRenderPass[rt], grfx::ATTACHMENT_LOAD_OP_LOAD, frame.renderTargetViews[rt][0]},
+            {frame.clearRenderPass[rt], grfx::ATTACHMENT_LOAD_OP_CLEAR, frame.renderTargetViews[rt][1]},
+            {frame.noloadRenderPass[rt], grfx::ATTACHMENT_LOAD_OP_DONT_CARE, frame.renderTargetViews[rt][2]},
+        };
 
-    for (auto& renderpass : renderpasses) {
-        grfx::RenderTargetViewCreateInfo rtvCreateInfo =
-            grfx::RenderTargetViewCreateInfo::GuessFromImage(frame.colorImage);
-        rtvCreateInfo.loadOp    = renderpass.op;
-        rtvCreateInfo.ownership = grfx::OWNERSHIP_RESTRICTED;
-        Result ppxres           = GetDevice()->CreateRenderTargetView(&rtvCreateInfo, &renderpass.rtv);
+        for (auto& renderpass : renderpasses) {
+            grfx::RenderTargetViewCreateInfo rtvCreateInfo =
+                grfx::RenderTargetViewCreateInfo::GuessFromImage(frame.colorImage[rt]);
+            rtvCreateInfo.loadOp    = renderpass.op;
+            rtvCreateInfo.ownership = grfx::OWNERSHIP_RESTRICTED;
+            Result ppxres           = GetDevice()->CreateRenderTargetView(&rtvCreateInfo, &renderpass.rtv);
 
-        grfx::RenderPassCreateInfo rpCreateInfo = {};
-        rpCreateInfo.width                      = width;
-        rpCreateInfo.height                     = height;
-        rpCreateInfo.renderTargetCount          = 1;
-        rpCreateInfo.pRenderTargetViews[0]      = renderpass.rtv;
-        rpCreateInfo.pDepthStencilView          = frame.depthStencilView;
-        rpCreateInfo.renderTargetClearValues[0] = {{0.0f, 0.0f, 0.0f, 0.0f}};
-        rpCreateInfo.depthStencilClearValue     = {1.0f, 0xFF};
-        rpCreateInfo.ownership                  = grfx::OWNERSHIP_RESTRICTED;
+            grfx::RenderPassCreateInfo rpCreateInfo = {};
+            rpCreateInfo.width                      = width;
+            rpCreateInfo.height                     = height;
+            rpCreateInfo.renderTargetCount          = 1;
+            rpCreateInfo.pRenderTargetViews[0]      = renderpass.rtv;
+            rpCreateInfo.pDepthStencilView          = frame.depthStencilView;
+            rpCreateInfo.renderTargetClearValues[0] = {{0.0f, 0.0f, 0.0f, 0.0f}};
+            rpCreateInfo.depthStencilClearValue     = {1.0f, 0xFF};
+            rpCreateInfo.ownership                  = grfx::OWNERSHIP_RESTRICTED;
 
-        GetDevice()->CreateRenderPass(&rpCreateInfo, &renderpass.ptr);
-    }
+            GetDevice()->CreateRenderPass(&rpCreateInfo, &renderpass.ptr);
+        }
 
-    {
-        grfx::TextureCreateInfo createInfo         = {};
-        createInfo.pImage                          = frame.colorImage;
-        createInfo.imageType                       = grfx::IMAGE_TYPE_2D;
-        createInfo.width                           = width;
-        createInfo.height                          = height;
-        createInfo.depth                           = 1;
-        createInfo.imageFormat                     = colorFormat;
-        createInfo.sampleCount                     = grfx::SAMPLE_COUNT_1;
-        createInfo.mipLevelCount                   = 1;
-        createInfo.arrayLayerCount                 = 1;
-        createInfo.usageFlags.bits.inputAttachment = true;
-        createInfo.usageFlags.bits.sampled         = true;
-        createInfo.usageFlags.bits.colorAttachment = true;
-        // createInfo.usageFlags.bits.storage         = true;
-        createInfo.memoryUsage  = grfx::MEMORY_USAGE_GPU_ONLY;
-        createInfo.initialState = grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        {
+            grfx::TextureCreateInfo createInfo         = {};
+            createInfo.pImage                          = frame.colorImage[rt];
+            createInfo.imageType                       = grfx::IMAGE_TYPE_2D;
+            createInfo.width                           = width;
+            createInfo.height                          = height;
+            createInfo.depth                           = 1;
+            createInfo.imageFormat                     = colorFormat;
+            createInfo.sampleCount                     = grfx::SAMPLE_COUNT_1;
+            createInfo.mipLevelCount                   = 1;
+            createInfo.arrayLayerCount                 = 1;
+            createInfo.usageFlags.bits.inputAttachment = true;
+            createInfo.usageFlags.bits.sampled         = true;
+            createInfo.usageFlags.bits.colorAttachment = true;
+            // createInfo.usageFlags.bits.storage         = true;
+            createInfo.memoryUsage  = grfx::MEMORY_USAGE_GPU_ONLY;
+            createInfo.initialState = grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
-        PPX_CHECKED_CALL(GetDevice()->CreateTexture(&createInfo, &frame.blitSource));
+            PPX_CHECKED_CALL(GetDevice()->CreateTexture(&createInfo, &frame.blitSource[rt]));
+        }
     }
 
     // Allocate descriptor set
@@ -1558,7 +1562,7 @@ ppx::Result GraphicsBenchmarkApp::CreateOffscreenFrame(OffscreenFrame& frame, gr
         writes[0].binding               = 0;
         writes[0].arrayIndex            = 0;
         writes[0].type                  = grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        writes[0].pImageView            = frame.blitSource->GetSampledImageView();
+        writes[0].pImageView            = frame.blitSource[0]->GetSampledImageView();
 
         writes[1].binding  = 1;
         writes[1].type     = grfx::DESCRIPTOR_TYPE_SAMPLER;
@@ -1593,23 +1597,26 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
     PPX_CHECKED_CALL(frame.cmd->Begin());
 
     // TODO(wangra): render to texture
-    if (bRT) {
+    // if (bRT)
+    {
         bRT             = false;
         uint32_t width  = RT_WIDTH;
         uint32_t height = RT_HEIGHT;
         frame.cmd->SetScissors({0, 0, width, height});
         frame.cmd->SetViewports({0, 0, static_cast<float>(width), static_cast<float>(height), 0.0, 1.0});
 
-        RenderPasses        renderPasses      = OffscreenRenderPasses(mOffscreenFrame[0]);
-        grfx::RenderPassPtr currentRenderPass = renderPasses.noloadRenderPass;
-        frame.cmd->TransitionImageLayout(currentRenderPass->GetRenderTargetImage(0), PPX_ALL_SUBRESOURCES, grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE, grfx::RESOURCE_STATE_RENDER_TARGET);
-        frame.cmd->BindGraphicsPipeline(GetFullscreenQuadPipeline());
-        frame.cmd->BindVertexBuffers(1, &mFullscreenQuads.vertexBuffer, &mFullscreenQuads.vertexBinding.GetStride());
-        frame.cmd->BindGraphicsDescriptorSets(mQuadsPipelineInterfaces.at(pFullscreenQuadsType->GetIndex()), 1, &mFullscreenQuads.descriptorSets[0].at(GetInFlightFrameIndex()));
-        frame.cmd->BeginRenderPass(currentRenderPass);
-        RecordCommandBufferFullscreenQuad(frame, 0);
-        frame.cmd->EndRenderPass();
-        frame.cmd->TransitionImageLayout(currentRenderPass->GetRenderTargetImage(0), PPX_ALL_SUBRESOURCES, grfx::RESOURCE_STATE_RENDER_TARGET, grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        for (auto rt = 0; rt < kRTCount; ++rt) {
+            RenderPasses        renderPasses      = OffscreenRenderPasses(mOffscreenFrame[0], rt);
+            grfx::RenderPassPtr currentRenderPass = renderPasses.noloadRenderPass;
+            frame.cmd->TransitionImageLayout(currentRenderPass->GetRenderTargetImage(0), PPX_ALL_SUBRESOURCES, grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE, grfx::RESOURCE_STATE_RENDER_TARGET);
+            frame.cmd->BindGraphicsPipeline(GetFullscreenQuadPipeline());
+            frame.cmd->BindVertexBuffers(1, &mFullscreenQuads.vertexBuffer, &mFullscreenQuads.vertexBinding.GetStride());
+            frame.cmd->BindGraphicsDescriptorSets(mQuadsPipelineInterfaces.at(pFullscreenQuadsType->GetIndex()), 1, &mFullscreenQuads.descriptorSets[0].at(GetInFlightFrameIndex()));
+            frame.cmd->BeginRenderPass(currentRenderPass);
+            RecordCommandBufferFullscreenQuad(frame, 0);
+            frame.cmd->EndRenderPass();
+            frame.cmd->TransitionImageLayout(currentRenderPass->GetRenderTargetImage(0), PPX_ALL_SUBRESOURCES, grfx::RESOURCE_STATE_RENDER_TARGET, grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        }
     }
 
     // Write start timestamp
