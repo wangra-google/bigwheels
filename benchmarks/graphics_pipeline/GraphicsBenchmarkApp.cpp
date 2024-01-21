@@ -864,11 +864,13 @@ grfx::GraphicsPipelinePtr GraphicsBenchmarkApp::GetSpherePipeline()
     return mPipelines[key];
 }
 
-grfx::GraphicsPipelinePtr GraphicsBenchmarkApp::GetFullscreenQuadPipeline()
+grfx::GraphicsPipelinePtr GraphicsBenchmarkApp::GetFullscreenQuadPipeline(bool forceType, FullscreenQuadsType type)
 {
     QuadPipelineKey key = {};
     key.renderFormat    = RenderFormat();
     key.quadType        = pFullscreenQuadsType->GetValue();
+    if (forceType)
+        key.quadType = type;
     PPX_CHECKED_CALL(CompilePipeline(key));
     return mQuadsPipelines[key];
 }
@@ -914,7 +916,7 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsPipelines()
     }
 
     // Pre-load the current pipeline variant.
-    GetFullscreenQuadPipeline();
+    GetFullscreenQuadPipeline(false);
 }
 
 void GraphicsBenchmarkApp::SetupSpheres()
@@ -1608,11 +1610,14 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
             RenderPasses        renderPasses      = OffscreenRenderPasses(mOffscreenFrame[0], rt);
             grfx::RenderPassPtr currentRenderPass = renderPasses.noloadRenderPass;
             frame.cmd->TransitionImageLayout(currentRenderPass->GetRenderTargetImage(0), PPX_ALL_SUBRESOURCES, grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE, grfx::RESOURCE_STATE_RENDER_TARGET);
-            frame.cmd->BindGraphicsPipeline(GetFullscreenQuadPipeline());
+            // TODO(wangra): change type
+            const auto type = FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_SOLID_COLOR;
+            frame.cmd->BindGraphicsPipeline(GetFullscreenQuadPipeline(true, type));
             frame.cmd->BindVertexBuffers(1, &mFullscreenQuads.vertexBuffer, &mFullscreenQuads.vertexBinding.GetStride());
-            frame.cmd->BindGraphicsDescriptorSets(mQuadsPipelineInterfaces.at(pFullscreenQuadsType->GetIndex()), 1, &mFullscreenQuads.descriptorSets[0].at(GetInFlightFrameIndex()));
+            if (type == FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_TEXTURE)
+                frame.cmd->BindGraphicsDescriptorSets(mQuadsPipelineInterfaces.at(pFullscreenQuadsType->GetIndex()), 1, &mFullscreenQuads.descriptorSets[0].at(GetInFlightFrameIndex()));
             frame.cmd->BeginRenderPass(currentRenderPass);
-            RecordCommandBufferFullscreenQuad(frame, 0);
+            RecordCommandBufferFullscreenQuad(frame, 0, true, type);
             frame.cmd->EndRenderPass();
             frame.cmd->TransitionImageLayout(currentRenderPass->GetRenderTargetImage(0), PPX_ALL_SUBRESOURCES, grfx::RESOURCE_STATE_RENDER_TARGET, grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         }
@@ -1666,7 +1671,7 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
     bool     singleRenderpass = pFullscreenQuadsSingleRenderpass->GetValue();
     if (quadsCount > 0) {
         currentRenderPass = renderpasses.noloadRenderPass;
-        frame.cmd->BindGraphicsPipeline(GetFullscreenQuadPipeline());
+        frame.cmd->BindGraphicsPipeline(GetFullscreenQuadPipeline(false));
         frame.cmd->BindVertexBuffers(1, &mFullscreenQuads.vertexBuffer, &mFullscreenQuads.vertexBinding.GetStride());
 
         if (pFullscreenQuadsType->GetValue() == FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_TEXTURE) {
@@ -1676,7 +1681,7 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
         // Begin the first renderpass used for quads
         frame.cmd->BeginRenderPass(currentRenderPass);
         for (size_t i = 0; i < quadsCount; i++) {
-            RecordCommandBufferFullscreenQuad(frame, i);
+            RecordCommandBufferFullscreenQuad(frame, i, false);
             if (!singleRenderpass) {
                 // If quads are using multiple renderpasses, transition image layout in between to force resolve
                 frame.cmd->EndRenderPass();
@@ -1816,9 +1821,12 @@ void GraphicsBenchmarkApp::RecordCommandBufferSpheres(PerFrame& frame)
     }
 }
 
-void GraphicsBenchmarkApp::RecordCommandBufferFullscreenQuad(PerFrame& frame, size_t seed)
+void GraphicsBenchmarkApp::RecordCommandBufferFullscreenQuad(PerFrame& frame, size_t seed, bool forceType, FullscreenQuadsType type)
 {
-    switch (pFullscreenQuadsType->GetValue()) {
+    FullscreenQuadsType quadsType = pFullscreenQuadsType->GetValue();
+    if (forceType)
+        quadsType = type;
+    switch (quadsType) {
         case FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_NOISE: {
             uint32_t noiseQuadRandomSeed = (uint32_t)seed;
             frame.cmd->PushGraphicsConstants(mQuadsPipelineInterfaces[0], 1, &noiseQuadRandomSeed);

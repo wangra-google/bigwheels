@@ -594,7 +594,7 @@ private:
     // Records commands to render * in this frame's command buffer, with the current renderpass
     void RecordCommandBufferSkyBox(PerFrame& frame);
     void RecordCommandBufferSpheres(PerFrame& frame);
-    void RecordCommandBufferFullscreenQuad(PerFrame& frame, size_t seed);
+    void RecordCommandBufferFullscreenQuad(PerFrame& frame, size_t seed, bool forceType, FullscreenQuadsType type = FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_NOISE);
 
 #if defined(PPX_BUILD_XR)
     // Records and submits commands for UI for XR
@@ -613,7 +613,7 @@ private:
 
     // Compile or load from cache currently required pipeline.
     grfx::GraphicsPipelinePtr GetSpherePipeline();
-    grfx::GraphicsPipelinePtr GetFullscreenQuadPipeline();
+    grfx::GraphicsPipelinePtr GetFullscreenQuadPipeline(bool forceType, FullscreenQuadsType type = FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_NOISE);
     grfx::GraphicsPipelinePtr GetSkyBoxPipeline();
 
     Result       CreateOffscreenFrame(OffscreenFrame&, grfx::Format colorFormat, grfx::Format depthFormat, uint32_t width, uint32_t height);
