@@ -1611,7 +1611,7 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
             grfx::RenderPassPtr currentRenderPass = renderPasses.noloadRenderPass;
             frame.cmd->TransitionImageLayout(currentRenderPass->GetRenderTargetImage(0), PPX_ALL_SUBRESOURCES, grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE, grfx::RESOURCE_STATE_RENDER_TARGET);
             // TODO(wangra): change type
-            const auto type = FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_SOLID_COLOR;
+            const auto type = FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_NOISE;
             frame.cmd->BindGraphicsPipeline(GetFullscreenQuadPipeline(true, type));
             frame.cmd->BindVertexBuffers(1, &mFullscreenQuads.vertexBuffer, &mFullscreenQuads.vertexBinding.GetStride());
             if (type == FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_TEXTURE)

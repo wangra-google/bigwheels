@@ -46,8 +46,8 @@ float4 psmain(VSOutputPos input) : SV_TARGET
 {
     //float rnd = random(input.position.xy, Random.Seed);
     //return float4(rnd, rnd, rnd, 1.0f);
-
-    const uint pixel_id = uint(input.position.y * 7680 + input.position.x);
+    const uint rt_width = 2048;
+    const uint pixel_id = uint(input.position.y * rt_width + input.position.x);
     const float red = rand_float(pixel_id);
     const float green = rand_float(pixel_id + 1);
     const float blue = rand_float(pixel_id - 1);
