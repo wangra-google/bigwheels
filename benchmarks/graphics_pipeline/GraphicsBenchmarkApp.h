@@ -316,17 +316,18 @@ private:
     {
         grfx::Format        renderFormat;
         FullscreenQuadsType quadType;
+        bool                enableWrite = true;
 
         bool operator==(const QuadPipelineKey& rhs) const
         {
-            return renderFormat == rhs.renderFormat && quadType == rhs.quadType;
+            return renderFormat == rhs.renderFormat && quadType == rhs.quadType && enableWrite == rhs.enableWrite;
         }
 
         struct Hash
         {
             size_t operator()(const QuadPipelineKey& key) const
             {
-                return (static_cast<size_t>(key.renderFormat) * kFullscreenQuadsTypes.size()) | static_cast<size_t>(key.quadType);
+                return (static_cast<size_t>(key.renderFormat) * kFullscreenQuadsTypes.size()) | static_cast<size_t>(key.quadType) | ((uint32_t)(key.enableWrite) * 7477u);
             }
         };
     };
