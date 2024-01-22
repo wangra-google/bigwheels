@@ -43,7 +43,7 @@ static constexpr size_t QUADS_SAMPLED_IMAGE2_REGISTER = 4;
 static constexpr size_t QUADS_SAMPLED_IMAGE3_REGISTER = 5;
 static constexpr size_t QUADS_SAMPLED_IMAGE4_REGISTER = 6;
 
-static constexpr float TEST_IMAGE_COUNT = 2.f;
+static float TEST_IMAGE_COUNT = (float)kRTCount;
 
 static constexpr size_t RT_WIDTH  = 2048;
 static constexpr size_t RT_HEIGHT = 2048;
@@ -199,7 +199,7 @@ void GraphicsBenchmarkApp::Config(ppx::ApplicationSettings& settings)
 #if defined(PPX_BUILD_XR)
     // XR specific settings
     settings.grfx.pacedFrameRate   = 0;
-    settings.xr.enable             = false; // Change this to true to enable the XR mode
+    settings.xr.enable             = true; // Change this to true to enable the XR mode
     settings.xr.enableDebugCapture = false;
 #endif
     settings.standardKnobsDefaultValue.enableMetrics        = true;
@@ -381,7 +381,7 @@ void GraphicsBenchmarkApp::UpdateMetrics()
 
             {
                 const auto               texelSize     = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
-                const float              dataReadInGb  = (static_cast<float>(std::min(mQuadsTexture->GetWidth(), width)) * static_cast<float>(std::min(mQuadsTexture->GetHeight(), height)) * texelSize * quadCount) / (1024.f * 1024.f * 1024.f);
+                const float              dataReadInGb  = (static_cast<float>(RT_WIDTH) * static_cast<float>(RT_HEIGHT) * texelSize * quadCount) / (1024.f * 1024.f * 1024.f);
                 const float              readBandwidth = TEST_IMAGE_COUNT * dataReadInGb / gpuWorkDurationInSec;
                 ppx::metrics::MetricData data          = {ppx::metrics::MetricType::GAUGE};
                 data.gauge.seconds                     = GetElapsedSeconds();
@@ -618,8 +618,8 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
                 PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE4_REGISTER, 0, mQuadsTexture4));
             }
             else {
-                grfx::WriteDescriptor write[kRTCount]   = {};
-                uint32_t              binding[kRTCount] = {QUADS_SAMPLED_IMAGE_REGISTER, QUADS_SAMPLED_IMAGE1_REGISTER, QUADS_SAMPLED_IMAGE2_REGISTER, QUADS_SAMPLED_IMAGE3_REGISTER, QUADS_SAMPLED_IMAGE4_REGISTER};
+                grfx::WriteDescriptor write[kRTCount] = {};
+                uint32_t              binding[5]      = {QUADS_SAMPLED_IMAGE_REGISTER, QUADS_SAMPLED_IMAGE1_REGISTER, QUADS_SAMPLED_IMAGE2_REGISTER, QUADS_SAMPLED_IMAGE3_REGISTER, QUADS_SAMPLED_IMAGE4_REGISTER};
                 for (auto rt = 0; rt < kRTCount; ++rt) {
                     write[rt].binding    = binding[rt];
                     write[rt].arrayIndex = 0;
@@ -1472,7 +1472,6 @@ ppx::Result GraphicsBenchmarkApp::CreateOffscreenFrame(OffscreenFrame& frame, gr
         colorCreateInfo.initialState                    = grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
         colorCreateInfo.usageFlags.bits.sampled         = true;
         colorCreateInfo.usageFlags.bits.colorAttachment = true;
-        colorCreateInfo.usageFlags.bits.inputAttachment = true;
         ppx::Result ppxres                              = GetDevice()->CreateImage(&colorCreateInfo, &frame.colorImage[rt]);
         if (ppxres != ppx::SUCCESS) {
             return ppxres;
@@ -1544,7 +1543,6 @@ ppx::Result GraphicsBenchmarkApp::CreateOffscreenFrame(OffscreenFrame& frame, gr
             createInfo.sampleCount                     = grfx::SAMPLE_COUNT_1;
             createInfo.mipLevelCount                   = 1;
             createInfo.arrayLayerCount                 = 1;
-            createInfo.usageFlags.bits.inputAttachment = true;
             createInfo.usageFlags.bits.sampled         = true;
             createInfo.usageFlags.bits.colorAttachment = true;
             // createInfo.usageFlags.bits.storage         = true;
@@ -1611,7 +1609,8 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
             grfx::RenderPassPtr currentRenderPass = renderPasses.noloadRenderPass;
             frame.cmd->TransitionImageLayout(currentRenderPass->GetRenderTargetImage(0), PPX_ALL_SUBRESOURCES, grfx::RESOURCE_STATE_PIXEL_SHADER_RESOURCE, grfx::RESOURCE_STATE_RENDER_TARGET);
             // TODO(wangra): change type
-            const auto type = FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_NOISE;
+            // FULLSCREEN_QUADS_TYPE_NOISE or FULLSCREEN_QUADS_TYPE_SOLID_COLOR
+            const auto type = FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_SOLID_COLOR;
             frame.cmd->BindGraphicsPipeline(GetFullscreenQuadPipeline(true, type));
             frame.cmd->BindVertexBuffers(1, &mFullscreenQuads.vertexBuffer, &mFullscreenQuads.vertexBinding.GetStride());
             if (type == FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_TEXTURE)

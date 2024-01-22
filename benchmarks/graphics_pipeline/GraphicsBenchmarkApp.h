@@ -40,7 +40,7 @@ static constexpr uint32_t kDebugColorPushConstantCount = sizeof(float4) / sizeof
 static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
 static constexpr const char* kQuadTextureFile = "benchmarks/textures/resolution.jpg";
 
-static constexpr uint32_t kRTCount = 5;
+static constexpr uint32_t kRTCount = 2;
 
 enum class DebugView
 {
