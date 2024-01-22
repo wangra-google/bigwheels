@@ -245,10 +245,10 @@ void GraphicsBenchmarkApp::Setup()
     // Descriptor Pool
     {
         grfx::DescriptorPoolCreateInfo createInfo = {};
-        createInfo.sampler                        = 6 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for blit
-        createInfo.sampledImage                   = 6 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for quads, 1 for blit
-        createInfo.uniformBuffer                  = 2 * GetNumFramesInFlight(); // 1 for skybox, 1 for spheres
-        createInfo.structuredBuffer               = 1;                          // 1 quad dummy
+        createInfo.sampler                        = 6 * GetNumFramesInFlight();  // 1 for skybox, 3 for spheres, 1 for blit
+        createInfo.sampledImage                   = 20 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for quads, 1 for blit
+        createInfo.uniformBuffer                  = 2 * GetNumFramesInFlight();  // 1 for skybox, 1 for spheres
+        createInfo.structuredBuffer               = 1;                           // 1 quad dummy
 
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorPool(&createInfo, &mDescriptorPool));
     }
