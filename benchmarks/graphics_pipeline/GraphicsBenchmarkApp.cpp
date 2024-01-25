@@ -329,11 +329,15 @@ void GraphicsBenchmarkApp::SetupMetrics()
 
         metadata                                               = {ppx::metrics::MetricType::GAUGE, "Write Bandwidth", "GB/s", ppx::metrics::MetricInterpretation::HIGHER_IS_BETTER, {0.f, 10000.f}};
         mMetricsData.metrics[MetricsData::kTypeWriteBandwidth] = AddMetric(metadata);
-        PPX_ASSERT_MSG(mMetricsData.metrics[MetricsData::kTypeWriteBandwidth] != ppx::metrics::kInvalidMetricID, "Failed to add Bandwidth metric");
+        PPX_ASSERT_MSG(mMetricsData.metrics[MetricsData::kTypeWriteBandwidth] != ppx::metrics::kInvalidMetricID, "Failed to add Write Bandwidth metric");
 
         metadata                                              = {ppx::metrics::MetricType::GAUGE, "Read Bandwidth", "GB/s", ppx::metrics::MetricInterpretation::HIGHER_IS_BETTER, {0.f, 10000.f}};
         mMetricsData.metrics[MetricsData::kTypeReadBandwidth] = AddMetric(metadata);
-        PPX_ASSERT_MSG(mMetricsData.metrics[MetricsData::kTypeReadBandwidth] != ppx::metrics::kInvalidMetricID, "Failed to add Bandwidth metric");
+        PPX_ASSERT_MSG(mMetricsData.metrics[MetricsData::kTypeReadBandwidth] != ppx::metrics::kInvalidMetricID, "Failed to add Read Bandwidth metric");
+
+        metadata                                               = {ppx::metrics::MetricType::GAUGE, "Total Bandwidth", "GB/s", ppx::metrics::MetricInterpretation::HIGHER_IS_BETTER, {0.f, 10000.f}};
+        mMetricsData.metrics[MetricsData::kTypeTotalBandwidth] = AddMetric(metadata);
+        PPX_ASSERT_MSG(mMetricsData.metrics[MetricsData::kTypeTotalBandwidth] != ppx::metrics::kInvalidMetricID, "Failed to add Total Bandwidth metric");
     }
 }
 
@@ -369,9 +373,10 @@ void GraphicsBenchmarkApp::UpdateMetrics()
         }
 
         if (mSkipRecordBandwidthMetricFrameCounter == 0) {
+            // Write Bandwidth: only valid when there is only write
+            const auto  writePixelSize = static_cast<float>(grfx::GetFormatDescription(colorFormat)->bytesPerTexel);
+            const float dataWriteInGb  = (static_cast<float>(width) * static_cast<float>(height) * writePixelSize * quadCount) / (1024.f * 1024.f * 1024.f);
             {
-                const auto               texelSize      = static_cast<float>(grfx::GetFormatDescription(colorFormat)->bytesPerTexel);
-                const float              dataWriteInGb  = (static_cast<float>(width) * static_cast<float>(height) * texelSize * quadCount) / (1024.f * 1024.f * 1024.f);
                 const float              writeBandwidth = dataWriteInGb / gpuWorkDurationInSec;
                 ppx::metrics::MetricData data           = {ppx::metrics::MetricType::GAUGE};
                 data.gauge.seconds                      = GetElapsedSeconds();
@@ -379,14 +384,24 @@ void GraphicsBenchmarkApp::UpdateMetrics()
                 RecordMetricData(mMetricsData.metrics[MetricsData::kTypeWriteBandwidth], data);
             }
 
+            // Read Bandwidth: only valid when there is only read
+            const auto  readTexelSize = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
+            const float dataReadInGb  = (static_cast<float>(RT_WIDTH) * static_cast<float>(RT_HEIGHT) * readTexelSize * quadCount) / (1024.f * 1024.f * 1024.f);
             {
-                const auto               texelSize     = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
-                const float              dataReadInGb  = (static_cast<float>(RT_WIDTH) * static_cast<float>(RT_HEIGHT) * texelSize * quadCount) / (1024.f * 1024.f * 1024.f);
-                const float              readBandwidth = TEST_IMAGE_COUNT * dataReadInGb / gpuWorkDurationInSec;
+                const float              readBandwidth = (TEST_IMAGE_COUNT * dataReadInGb) / gpuWorkDurationInSec;
                 ppx::metrics::MetricData data          = {ppx::metrics::MetricType::GAUGE};
                 data.gauge.seconds                     = GetElapsedSeconds();
                 data.gauge.value                       = readBandwidth;
                 RecordMetricData(mMetricsData.metrics[MetricsData::kTypeReadBandwidth], data);
+            }
+
+            // Total Bandwidth
+            {
+                const float              totalBandwidth = (TEST_IMAGE_COUNT * dataReadInGb + dataWriteInGb) / gpuWorkDurationInSec;
+                ppx::metrics::MetricData data           = {ppx::metrics::MetricType::GAUGE};
+                data.gauge.seconds                      = GetElapsedSeconds();
+                data.gauge.value                        = totalBandwidth;
+                RecordMetricData(mMetricsData.metrics[MetricsData::kTypeTotalBandwidth], data);
             }
         }
         else {
@@ -1343,23 +1358,26 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
         ImGui::NextColumn();
 
         if (HasActiveMetricsRun()) {
-            const auto writeBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeWriteBandwidth]);
-            ImGui::Text("Average Write Bandwidth");
-            ImGui::NextColumn();
-            ImGui::Text("%.2f GB/s", writeBandwidth.average);
-            ImGui::NextColumn();
+            // Write bandwidth is only valid when there is only write
+            if (pFullscreenQuadsType->GetIndex() != 2) {
+                const auto writeBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeWriteBandwidth]);
+                ImGui::Text("Average Write Bandwidth");
+                ImGui::NextColumn();
+                ImGui::Text("%.2f GB/s", writeBandwidth.average);
+                ImGui::NextColumn();
 
-            ImGui::Text("Min Write Bandwidth");
-            ImGui::NextColumn();
-            ImGui::Text("%.2f GB/s", writeBandwidth.min);
-            ImGui::NextColumn();
+                ImGui::Text("Min Write Bandwidth");
+                ImGui::NextColumn();
+                ImGui::Text("%.2f GB/s", writeBandwidth.min);
+                ImGui::NextColumn();
 
-            ImGui::Text("Max Write Bandwidth");
-            ImGui::NextColumn();
-            ImGui::Text("%.2f GB/s", writeBandwidth.max);
-            ImGui::NextColumn();
-
-            if (pFullscreenQuadsType->GetIndex() == 2) {
+                ImGui::Text("Max Write Bandwidth");
+                ImGui::NextColumn();
+                ImGui::Text("%.2f GB/s", writeBandwidth.max);
+                ImGui::NextColumn();
+            }
+            else {
+                // Read bandwidth is only valid when there is only read
                 const auto readBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeReadBandwidth]);
                 ImGui::Text("Average Read Bandwidth");
                 ImGui::NextColumn();
@@ -1376,6 +1394,22 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
                 ImGui::Text("%.2f GB/s", readBandwidth.max);
                 ImGui::NextColumn();
             }
+
+            const auto totalBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeTotalBandwidth]);
+            ImGui::Text("Average Total Bandwidth");
+            ImGui::NextColumn();
+            ImGui::Text("%.2f GB/s", totalBandwidth.average);
+            ImGui::NextColumn();
+
+            ImGui::Text("Min Total Bandwidth");
+            ImGui::NextColumn();
+            ImGui::Text("%.2f GB/s", totalBandwidth.min);
+            ImGui::NextColumn();
+
+            ImGui::Text("Max Total Bandwidth");
+            ImGui::NextColumn();
+            ImGui::Text("%.2f GB/s", totalBandwidth.max);
+            ImGui::NextColumn();
         }
     }
     ImGui::Columns(1);
