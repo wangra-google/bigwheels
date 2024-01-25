@@ -489,6 +489,7 @@ private:
             kTypeCPUSubmissionTime = 0,
             kTypeWriteBandwidth,
             kTypeReadBandwidth,
+            kTypeTotalBandwidth,
             kCount
         };
 
