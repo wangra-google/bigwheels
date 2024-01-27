@@ -440,6 +440,7 @@ private:
     uint64_t                          mGpuWorkDuration;
     grfx::SamplerPtr                  mLinearSampler;
     grfx::SamplerPtr                  mPointSampler;
+    grfx::SamplerPtr                  mYuvSampler;
     grfx::DescriptorPoolPtr           mDescriptorPool;
     std::vector<OffscreenFrame>       mOffscreenFrame;
     double                            mCPUSubmissionTime = 0.0;
