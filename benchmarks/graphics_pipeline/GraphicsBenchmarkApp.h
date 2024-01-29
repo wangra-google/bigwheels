@@ -41,6 +41,8 @@ static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
 static constexpr const char* kQuadTextureFile = "benchmarks/textures/resolution.jpg";
 static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv.raw";
 
+static constexpr uint32_t kYuvImageCount = 4;
+
 enum class DebugView
 {
     DISABLED = 0,
@@ -440,7 +442,7 @@ private:
     uint64_t                          mGpuWorkDuration;
     grfx::SamplerPtr                  mLinearSampler;
     grfx::SamplerPtr                  mPointSampler;
-    grfx::SamplerPtr                  mYuvSampler;
+    grfx::SamplerPtr                  mYuvSampler[kYuvImageCount];
     grfx::DescriptorPoolPtr           mDescriptorPool;
     std::vector<OffscreenFrame>       mOffscreenFrame;
     double                            mCPUSubmissionTime = 0.0;
@@ -477,7 +479,7 @@ private:
     grfx::TexturePtr                                                     mQuadsTexture2;
     grfx::TexturePtr                                                     mQuadsTexture3;
     grfx::TexturePtr                                                     mQuadsTexture4;
-    grfx::TexturePtr                                                     mYUVTexture0;
+    grfx::TexturePtr                                                     mYUVTexture[kYuvImageCount];
     grfx::BufferPtr                                                      mQuadsDummyBuffer;
     QuadPipelineMap                                                      mQuadsPipelines;
     std::array<grfx::PipelineInterfacePtr, kFullscreenQuadsTypes.size()> mQuadsPipelineInterfaces;
