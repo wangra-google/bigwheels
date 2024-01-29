@@ -41,6 +41,7 @@ static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
 static constexpr const char* kQuadTextureFile = "benchmarks/textures/resolution.jpg";
 static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv.raw";
 
+static constexpr uint32_t kImageCount    = 4;
 static constexpr uint32_t kYuvImageCount = 4;
 
 enum class DebugView
@@ -474,11 +475,7 @@ private:
     // Fullscreen quads resources
     Entity2D                                                             mFullscreenQuads;
     grfx::ShaderModulePtr                                                mVSQuads;
-    grfx::TexturePtr                                                     mQuadsTexture;
-    grfx::TexturePtr                                                     mQuadsTexture1;
-    grfx::TexturePtr                                                     mQuadsTexture2;
-    grfx::TexturePtr                                                     mQuadsTexture3;
-    grfx::TexturePtr                                                     mQuadsTexture4;
+    grfx::TexturePtr                                                     mQuadsTexture[kImageCount];
     grfx::TexturePtr                                                     mYUVTexture[kYuvImageCount];
     grfx::BufferPtr                                                      mQuadsDummyBuffer;
     QuadPipelineMap                                                      mQuadsPipelines;
