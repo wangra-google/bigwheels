@@ -165,6 +165,11 @@ void XrComponent::InitializeBeforeGrfxDeviceInit(const XrComponentCreateInfo& cr
         mPassthroughSupported = XR_PASSTHROUGH_OCULUS;
     }
 
+    if (IsXrExtensionSupported(xrExts, XR_KHR_VISIBILITY_MASK_EXTENSION_NAME)) {
+        xrInstanceExtensions.push_back(XR_KHR_VISIBILITY_MASK_EXTENSION_NAME);
+        mVisibilityMaskEnabled = true;
+    }
+
     // Layers (Optional)
     std::vector<const char*> xrRequestedInstanceLayers;
     if (mCreateInfo.enableDebug) {
@@ -302,6 +307,27 @@ void XrComponent::InitializeAfterGrfxDeviceInit(const grfx::InstancePtr pGrfxIns
         PPX_ASSERT_MSG(mPassthrough != XR_NULL_HANDLE, "XrPassthroughFB creation failed!");
     }
 
+    // Gather visibility mask
+    if (mVisibilityMaskEnabled)
+    {
+        PFN_xrGetVisibilityMaskKHR pfnXrGetVisibilityMaskKHR = nullptr;
+        CHECK_XR_CALL(xrGetInstanceProcAddr(mInstance, "xrGetVisibilityMaskKHR", (PFN_xrVoidFunction*)(&pfnXrGetVisibilityMaskKHR)));
+        PPX_ASSERT_MSG(pfnXrGetVisibilityMaskKHR != nullptr, "Cannot get xrGetVisibilityMaskKHR function pointer!");
+
+        mVisibilityMasks.resize(viewCount);
+        for (uint32_t v = 0; v < viewCount; ++v) {
+            CHECK_XR_CALL(pfnXrGetVisibilityMaskKHR(mSession, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, v, XR_VISIBILITY_MASK_TYPE_HIDDEN_TRIANGLE_MESH_KHR, &mVisibilityMasks[v]));
+            if ((mVisibilityMasks[v].vertexCountOutput != 0) && (mVisibilityMasks[v].indexCountOutput != 0))
+            {
+                mVisibilityMasks[v].vertexCapacityInput = mVisibilityMasks[v].vertexCountOutput;
+                mVisibilityMasks[v].vertices            = new XrVector2f[mVisibilityMasks[v].vertexCountOutput];
+                mVisibilityMasks[v].indexCapacityInput  = mVisibilityMasks[v].indexCountOutput;
+                mVisibilityMasks[v].indices             = new uint32_t[mVisibilityMasks[v].indexCountOutput];
+                CHECK_XR_CALL(pfnXrGetVisibilityMaskKHR(mSession, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, v, XR_VISIBILITY_MASK_TYPE_HIDDEN_TRIANGLE_MESH_KHR, &mVisibilityMasks[v]));
+            }
+        }
+    }
+
     // Ignore return value, since controller support is not essential.
     InitializeInteractionProfiles();
 }
@@ -367,6 +393,27 @@ XrResult XrComponent::InitializeInteractionProfiles()
 
 void XrComponent::Destroy()
 {
+    const size_t maskCout = mVisibilityMasks.size();
+    for (size_t i = 0; i < maskCout; ++i)
+    {
+        if (mVisibilityMasks[i].vertices != nullptr)
+        {
+            PPX_ASSERT_MSG(mVisibilityMasks[i].vertexCapacityInput != 0, "VertexCapacityInput should not be 0");
+            PPX_ASSERT_MSG(mVisibilityMasks[i].vertexCountOutput != 0, "VertexCountOutput should not be 0");
+            delete[] mVisibilityMasks[i].vertices;
+            mVisibilityMasks[i].vertices = nullptr;
+            mVisibilityMasks[i].vertexCapacityInput = 0;
+            mVisibilityMasks[i].vertexCountOutput = 0;
+        }
+        if (mVisibilityMasks[i].indices != nullptr) {
+            PPX_ASSERT_MSG(mVisibilityMasks[i].indexCapacityInput != 0, "IndexCapacityInput should not be 0");
+            PPX_ASSERT_MSG(mVisibilityMasks[i].indexCountOutput != 0, "IndexCountOutput should not be 0");
+            delete[] mVisibilityMasks[i].indices;
+            mVisibilityMasks[i].indices             = nullptr;
+            mVisibilityMasks[i].indexCapacityInput = 0;
+            mVisibilityMasks[i].indexCountOutput    = 0;
+        }
+    }
     if (mImguiAimAction != XR_NULL_HANDLE) {
         xrDestroyAction(mImguiAimAction);
     }

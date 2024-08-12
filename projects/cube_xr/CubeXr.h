@@ -19,6 +19,26 @@
 #include "ppx/ppx.h"
 using namespace ppx;
 
+class VisibilityMask
+{
+public:
+    void Initialize(Application* pApp, grfx::DescriptorPoolPtr descriptorPool);
+    void Render(Application* pApp, grfx::CommandBufferPtr cmd);
+
+private:
+    grfx::ShaderModulePtr        mVS;
+    grfx::ShaderModulePtr        mPS;
+    grfx::PipelineInterfacePtr   mPipelineInterface;
+    grfx::GraphicsPipelinePtr    mPipeline;
+    grfx::BufferPtr              mVertexBuffer[2];
+    grfx::BufferPtr              mIndexBuffer[2];
+    grfx::DescriptorSetLayoutPtr mDescriptorSetLayout;
+    grfx::DescriptorSetPtr       mDescriptorSet;
+    grfx::BufferPtr              mUniformBuffer;
+    grfx::VertexBinding          mVertexBinding;
+    uint32_t                     mIndexCount  = 0;
+};
+
 class CubeXrApp
     : public Application
 {
@@ -54,6 +74,9 @@ private:
     grfx::Viewport               mViewport;
     grfx::Rect                   mScissorRect;
     grfx::VertexBinding          mVertexBinding;
+
+    VisibilityMask mVisibilityMask;
+
 };
 
 #endif // CUBEXR_H

@@ -208,6 +208,14 @@ public:
     void       SetCurrentViewIndex(uint32_t index) { mCurrentViewIndex = index; }
     uint32_t   GetCurrentViewIndex() const { return mCurrentViewIndex; }
 
+    const XrVisibilityMaskKHR& GetVisibilityMask(uint32_t viewIndex)
+    {
+        PPX_ASSERT_MSG((viewIndex < mVisibilityMasks.size()), "Visibility Mask not found for current view");
+        return mVisibilityMasks[viewIndex];
+    }
+
+    bool IsVisibilityMaskEnabled() const { return mVisibilityMaskEnabled; }
+
     const XrCamera& GetCamera() const
     {
         PPX_ASSERT_MSG((mCurrentViewIndex < mCameras.size()), "Camera not found for current view");
@@ -259,6 +267,9 @@ private:
     XrInstance mInstance = XR_NULL_HANDLE;
     XrSystemId mSystemId = XR_NULL_SYSTEM_ID;
     XrSession  mSession  = XR_NULL_HANDLE;
+
+    std::vector <XrVisibilityMaskKHR> mVisibilityMasks;
+    bool                             mVisibilityMaskEnabled     = false;
 
     XrPassthroughSupport mPassthroughSupported = XR_PASSTHROUGH_NONE;
     bool                 mPassthroughEnabled   = false;

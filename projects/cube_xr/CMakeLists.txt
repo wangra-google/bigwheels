@@ -19,4 +19,7 @@ add_samples_for_all_apis(
     "CubeXr.h"
     "CubeXr.cpp"
     "main.cpp"
-    SHADER_DEPENDENCIES "shader_vertex_colors")
+    SHADER_DEPENDENCIES 
+    "shader_vertex_colors"
+    "shader_visibility_mask"
+)

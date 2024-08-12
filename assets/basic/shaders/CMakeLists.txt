@@ -34,3 +34,4 @@ generate_rules_for_shader("shader_unlit" SOURCE "${PPX_DIR}/assets/basic/shaders
 generate_rules_for_shader("shader_push_constants_texture" SOURCE "${PPX_DIR}/assets/basic/shaders/PushConstantsTexture.hlsl" STAGES "ps" "vs")
 generate_rules_for_shader("shader_push_descriptors_buffers_texture" SOURCE "${PPX_DIR}/assets/basic/shaders/PushDescriptorsBuffersTexture.hlsl" STAGES "ps" "vs")
 generate_rules_for_shader("shader_push_descriptors_texture" SOURCE "${PPX_DIR}/assets/basic/shaders/PushDescriptorsTexture.hlsl" STAGES "ps" "vs")
+generate_rules_for_shader("shader_visibility_mask" SOURCE "${PPX_DIR}/assets/basic/shaders/VisibilityMask.hlsl" STAGES "ps" "vs")

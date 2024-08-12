@@ -48,7 +48,7 @@ void CubeXrApp::Setup()
     // Descriptor
     {
         grfx::DescriptorPoolCreateInfo poolCreateInfo = {};
-        poolCreateInfo.uniformBuffer                  = 1;
+        poolCreateInfo.uniformBuffer                  = 1 + 1; // 1 more for visibility mask
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorPool(&poolCreateInfo, &mDescriptorPool));
 
         grfx::DescriptorSetLayoutCreateInfo layoutCreateInfo = {};
@@ -197,6 +197,8 @@ void CubeXrApp::Setup()
     // Viewport and scissor rect
     mViewport    = {0, 0, float(GetWindowWidth()), float(GetWindowHeight()), 0, 1};
     mScissorRect = {0, 0, GetWindowWidth(), GetWindowHeight()};
+
+    mVisibilityMask.Initialize(this, mDescriptorPool);
 }
 
 void CubeXrApp::Render()
@@ -307,6 +309,10 @@ void CubeXrApp::Render()
         {
             frame.cmd->SetScissors(1, &mScissorRect);
             frame.cmd->SetViewports(1, &mViewport);
+
+            // Draw visibility mask
+            mVisibilityMask.Render(this, frame.cmd);
+
             frame.cmd->BindGraphicsDescriptorSets(mPipelineInterface, 1, &mDescriptorSet);
             frame.cmd->BindGraphicsPipeline(mPipeline);
             frame.cmd->BindVertexBuffers(1, &mVertexBuffer, &mVertexBinding.GetStride());
@@ -350,3 +356,141 @@ void CubeXrApp::Render()
         PPX_CHECKED_CALL(swapchain->Present(imageIndex, 1, &frame.renderCompleteSemaphore));
     }
 }
+
+
+void VisibilityMask::Initialize(Application* pApp, grfx::DescriptorPoolPtr descriptorPool)
+{
+    if (!pApp->IsXrEnabled() || !pApp->GetXrComponent().IsVisibilityMaskEnabled())
+        return;
+
+    // Uniform buffer
+    {
+        grfx::BufferCreateInfo bufferCreateInfo        = {};
+        bufferCreateInfo.size                          = PPX_MINIMUM_UNIFORM_BUFFER_SIZE;
+        bufferCreateInfo.usageFlags.bits.uniformBuffer = true;
+        bufferCreateInfo.memoryUsage                   = grfx::MEMORY_USAGE_CPU_TO_GPU;
+
+        PPX_CHECKED_CALL(pApp->GetDevice()->CreateBuffer(&bufferCreateInfo, &mUniformBuffer));
+    }
+
+    // Descriptor
+    {
+        grfx::DescriptorSetLayoutCreateInfo layoutCreateInfo = {};
+        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding{0, grfx::DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, grfx::SHADER_STAGE_ALL_GRAPHICS});
+        PPX_CHECKED_CALL(pApp->GetDevice()->CreateDescriptorSetLayout(&layoutCreateInfo, &mDescriptorSetLayout));
+
+        PPX_CHECKED_CALL(pApp->GetDevice()->AllocateDescriptorSet(descriptorPool, mDescriptorSetLayout, &mDescriptorSet));
+
+        grfx::WriteDescriptor write = {};
+        write.binding               = 0;
+        write.type                  = grfx::DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        write.bufferOffset          = 0;
+        write.bufferRange           = PPX_WHOLE_SIZE;
+        write.pBuffer               = mUniformBuffer;
+        PPX_CHECKED_CALL(mDescriptorSet->UpdateDescriptors(1, &write));
+    }
+
+    // Pipeline
+    {
+        std::vector<char> bytecode = pApp->LoadShader("basic/shaders", "VisibilityMask.vs");
+        PPX_ASSERT_MSG(!bytecode.empty(), "VS shader bytecode load failed");
+        grfx::ShaderModuleCreateInfo shaderCreateInfo = {static_cast<uint32_t>(bytecode.size()), bytecode.data()};
+        PPX_CHECKED_CALL(pApp->GetDevice()->CreateShaderModule(&shaderCreateInfo, &mVS));
+
+        bytecode = pApp->LoadShader("basic/shaders", "VisibilityMask.ps");
+        PPX_ASSERT_MSG(!bytecode.empty(), "PS shader bytecode load failed");
+        shaderCreateInfo = {static_cast<uint32_t>(bytecode.size()), bytecode.data()};
+        PPX_CHECKED_CALL(pApp->GetDevice()->CreateShaderModule(&shaderCreateInfo, &mPS));
+
+        grfx::PipelineInterfaceCreateInfo piCreateInfo = {};
+        piCreateInfo.setCount                          = 1;
+        piCreateInfo.sets[0].set                       = 0;
+        piCreateInfo.sets[0].pLayout                   = mDescriptorSetLayout;
+        PPX_CHECKED_CALL(pApp->GetDevice()->CreatePipelineInterface(&piCreateInfo, &mPipelineInterface));
+
+        mVertexBinding.AppendAttribute({"POSITION", 0, grfx::FORMAT_R32G32_FLOAT, 0, PPX_APPEND_OFFSET_ALIGNED, grfx::VERTEX_INPUT_RATE_VERTEX});
+
+        grfx::GraphicsPipelineCreateInfo2 gpCreateInfo  = {};
+        gpCreateInfo.VS                                 = {mVS.Get(), "vsmain"};
+        gpCreateInfo.PS                                 = {mPS.Get(), "psmain"};
+        gpCreateInfo.vertexInputState.bindingCount      = 1;
+        gpCreateInfo.vertexInputState.bindings[0]       = mVertexBinding;
+        gpCreateInfo.topology                           = grfx::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        gpCreateInfo.polygonMode                        = grfx::POLYGON_MODE_FILL;
+        gpCreateInfo.cullMode                           = grfx::CULL_MODE_BACK;
+        gpCreateInfo.frontFace                          = grfx::FRONT_FACE_CCW;
+        gpCreateInfo.depthReadEnable                    = false;
+        gpCreateInfo.depthWriteEnable                   = true;
+        gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_NONE;
+        gpCreateInfo.outputState.renderTargetCount      = 1;
+        gpCreateInfo.outputState.renderTargetFormats[0] = pApp->GetSwapchain()->GetColorFormat();
+        gpCreateInfo.outputState.depthStencilFormat     = pApp->GetSwapchain()->GetDepthFormat();
+        gpCreateInfo.pPipelineInterface                 = mPipelineInterface;
+        PPX_CHECKED_CALL(pApp->GetDevice()->CreateGraphicsPipeline(&gpCreateInfo, &mPipeline));
+    }
+
+    // Geometry data
+    {
+        for (uint32_t i=0;i<2;++i)
+        {
+            const XrVisibilityMaskKHR& vm = pApp->GetXrComponent().GetVisibilityMask(i);
+            // Vertices
+            {
+                uint32_t                   dataSize           = vm.vertexCountOutput * sizeof(XrVector2f);
+                grfx::BufferCreateInfo     bufferCreateInfo   = {};
+                bufferCreateInfo.size                         = dataSize;
+                bufferCreateInfo.usageFlags.bits.vertexBuffer = true;
+                bufferCreateInfo.memoryUsage                  = grfx::MEMORY_USAGE_CPU_TO_GPU;
+                PPX_CHECKED_CALL(pApp->GetDevice()->CreateBuffer(&bufferCreateInfo, &mVertexBuffer[i]));
+                void* pAddr = nullptr;
+                PPX_CHECKED_CALL(mVertexBuffer[i]->MapMemory(0, &pAddr));
+                memcpy(pAddr, vm.vertices, dataSize);
+                mVertexBuffer[i]->UnmapMemory();
+            }
+            
+            // Indices
+            {
+                mIndexCount                                  = vm.indexCountOutput;
+                uint32_t               dataSize              = mIndexCount * sizeof(uint32_t);
+                grfx::BufferCreateInfo bufferCreateInfo      = {};
+                bufferCreateInfo.size                        = dataSize;
+                bufferCreateInfo.usageFlags.bits.indexBuffer = true;
+                bufferCreateInfo.memoryUsage                 = grfx::MEMORY_USAGE_CPU_TO_GPU;
+                PPX_CHECKED_CALL(pApp->GetDevice()->CreateBuffer(&bufferCreateInfo, &mIndexBuffer[i]));
+                void* pAddr = nullptr;
+                PPX_CHECKED_CALL(mIndexBuffer[i]->MapMemory(0, &pAddr));
+                memcpy(pAddr, vm.indices, dataSize);
+                mIndexBuffer[i]->UnmapMemory();
+            }
+        }
+        
+        
+    }
+
+}
+
+void VisibilityMask::Render(Application* pApp, grfx::CommandBufferPtr cmd)
+{
+    if (mIndexCount == 0)
+        return;
+
+    // Update uniform buffer.
+    {
+        const Camera& camera = pApp->GetXrComponent().GetCamera();
+        float4x4      P      = camera.GetProjectionMatrix();
+
+        void* pData = nullptr;
+        PPX_CHECKED_CALL(mUniformBuffer->MapMemory(0, &pData));
+        memcpy(pData, &P, sizeof(P));
+        mUniformBuffer->UnmapMemory();
+    }
+
+    const uint32_t index = pApp->GetXrComponent().GetCurrentViewIndex();
+    cmd->BindGraphicsDescriptorSets(mPipelineInterface, 1, &mDescriptorSet);
+    cmd->BindGraphicsPipeline(mPipeline);
+    cmd->BindVertexBuffers(1, &mVertexBuffer[index], &mVertexBinding.GetStride());
+    cmd->BindIndexBuffer(mIndexBuffer[index], grfx::IndexType::INDEX_TYPE_UINT32, 0);
+    cmd->DrawIndexed(mIndexCount);
+}
+
+
