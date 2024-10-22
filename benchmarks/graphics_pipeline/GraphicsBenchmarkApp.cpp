@@ -1136,17 +1136,21 @@ void GraphicsBenchmarkApp::Render()
         PPX_CHECKED_CALL(frame.imageAcquiredFence->WaitAndReset());
     }
 
-    // Read query results
-    if (GetFrameCount() > 0) {
-        uint64_t data[2] = {0, 0};
-        PPX_CHECKED_CALL(frame.timestampQuery->GetData(data, sizeof(data)));
-        mGpuWorkDuration.Update(data[1] - data[0]);
+    if (currentViewIndex == 0)
+    {
+        // Read query results
+        if (GetFrameCount() > 0) {
+            uint64_t data[2] = {0, 0};
+            PPX_CHECKED_CALL(frame.timestampQuery->GetData(data, sizeof(data)));
+            mGpuWorkDuration.Update(data[1] - data[0]);
+        }
+        // Reset query
+        frame.timestampQuery->Reset(/* firstQuery= */ 0, frame.timestampQuery->GetCount());
     }
-    // Reset query
-    frame.timestampQuery->Reset(/* firstQuery= */ 0, frame.timestampQuery->GetCount());
 
     // drawcall/renderpass queries
 #if defined(ENABLE_GPU_QUERIES)
+    if (currentViewIndex == 0)
     {
         uint64_t drawcallTimestamps[kMaxSphereInstanceCount * 2];
         uint64_t renderpassTimestamps[2] = {0, 0};
@@ -1604,8 +1608,20 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
 {
     PPX_CHECKED_CALL(frame.cmd->Begin());
 
+    uint32_t currentViewIndex = 0;
+
+#if defined(PPX_BUILD_XR)
+    // Render UI into a different composition layer.
+    if (IsXrEnabled()) {
+        currentViewIndex = GetXrComponent().GetCurrentViewIndex();
+    }
+#endif
+
     // Write start timestamp
-    frame.cmd->WriteTimestamp(frame.timestampQuery, grfx::PIPELINE_STAGE_TOP_OF_PIPE_BIT, /* queryIndex = */ 0);
+    if (currentViewIndex == 0)
+    {
+        frame.cmd->WriteTimestamp(frame.timestampQuery, grfx::PIPELINE_STAGE_TOP_OF_PIPE_BIT, /* queryIndex = */ 0);
+    }
     if (!pRenderOffscreen->GetValue()) {
         frame.cmd->SetScissors(GetScissor());
         frame.cmd->SetViewports(GetViewport());
@@ -1637,9 +1653,11 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
     bool renderScene = pEnableSkyBox->GetValue() || pEnableSpheres->GetValue();
     if (renderScene) {
         // Record commands for the scene using one renderpass
+        if (currentViewIndex == 0) {
 #if defined(ENABLE_GPU_QUERIES)
-        frame.cmd->WriteTimestamp(frame.renderpassTimestampQueries, grfx::PIPELINE_STAGE_TOP_OF_PIPE_BIT, /* queryIndex = */ 0);
+            frame.cmd->WriteTimestamp(frame.renderpassTimestampQueries, grfx::PIPELINE_STAGE_TOP_OF_PIPE_BIT, /* queryIndex = */ 0);
 #endif
+        }
         frame.cmd->BeginRenderPass(currentRenderPass);
         if (pEnableSkyBox->GetValue()) {
             RecordCommandBufferSkyBox(frame);
@@ -1648,9 +1666,11 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
             RecordCommandBufferSpheres(frame);
         }
         frame.cmd->EndRenderPass();
+        if (currentViewIndex == 0) {
 #if defined(ENABLE_GPU_QUERIES)
-        frame.cmd->WriteTimestamp(frame.renderpassTimestampQueries, grfx::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, /* queryIndex = */ 1);
+            frame.cmd->WriteTimestamp(frame.renderpassTimestampQueries, grfx::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, /* queryIndex = */ 1);
 #endif
+        }
     }
 
     // Record commands for the fullscreen quads using one/multiple renderpasses
@@ -1686,9 +1706,11 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
         }
     }
 
-    // Write end timestamp
-    // Note the framebuffer is still in RENDER_TARGET state, although it should not really be a problem.
-    frame.cmd->WriteTimestamp(frame.timestampQuery, grfx::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, /* queryIndex = */ 1);
+    if (currentViewIndex == 0) {
+        // Write end timestamp
+        // Note the framebuffer is still in RENDER_TARGET state, although it should not really be a problem.
+        frame.cmd->WriteTimestamp(frame.timestampQuery, grfx::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, /* queryIndex = */ 1);
+    }
 
     if (renderpasses.blitRenderPass) {
         currentRenderPass = renderpasses.blitRenderPass;
@@ -1741,13 +1763,17 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
         *swapchainState = presentState;
     }
 
-    // Resolve queries
-    frame.cmd->ResolveQueryData(frame.timestampQuery, /* startIndex= */ 0, frame.timestampQuery->GetCount());
+    if (currentViewIndex == 0) {
+        // Resolve queries
+        frame.cmd->ResolveQueryData(frame.timestampQuery, /* startIndex= */ 0, frame.timestampQuery->GetCount());
+    }
 
+    if (currentViewIndex == 0) {
 #if defined(ENABLE_GPU_QUERIES)
-    frame.cmd->ResolveQueryData(frame.drawcallTimestampQueries, /* startIndex= */ 0, frame.drawcallTimestampQueries->GetCount());
-    frame.cmd->ResolveQueryData(frame.renderpassTimestampQueries, /* startIndex= */ 0, frame.renderpassTimestampQueries->GetCount());
-#endif 
+        frame.cmd->ResolveQueryData(frame.drawcallTimestampQueries, /* startIndex= */ 0, frame.drawcallTimestampQueries->GetCount());
+        frame.cmd->ResolveQueryData(frame.renderpassTimestampQueries, /* startIndex= */ 0, frame.renderpassTimestampQueries->GetCount());
+#endif
+    }
 
     PPX_CHECKED_CALL(frame.cmd->End());
 }
@@ -1771,6 +1797,15 @@ void GraphicsBenchmarkApp::RecordCommandBufferSkyBox(PerFrame& frame)
 
 void GraphicsBenchmarkApp::RecordCommandBufferSpheres(PerFrame& frame)
 {
+    uint32_t currentViewIndex = 0;
+
+#if defined(PPX_BUILD_XR)
+    // Render UI into a different composition layer.
+    if (IsXrEnabled()) {
+        currentViewIndex = GetXrComponent().GetCurrentViewIndex();
+    }
+#endif
+
     // Bind resources
     frame.cmd->BindGraphicsPipeline(GetSpherePipeline());
     const size_t meshIndex = mMeshesIndexer.GetIndex({pKnobLOD->GetIndex(), pKnobVbFormat->GetIndex(), pKnobVertexAttrLayout->GetIndex()});
@@ -1799,9 +1834,11 @@ void GraphicsBenchmarkApp::RecordCommandBufferSpheres(PerFrame& frame)
     frame.cmd->PushGraphicsConstants(mSphere.pipelineInterface, kDebugColorPushConstantCount, &kDefaultDrawCallColor);
 
     for (uint32_t i = 0; i < currentDrawCallCount; i++) {
+        if (currentViewIndex == 0) {
 #if defined(ENABLE_GPU_QUERIES)
-        frame.cmd->WriteTimestamp(frame.drawcallTimestampQueries, grfx::PIPELINE_STAGE_TOP_OF_PIPE_BIT, /* queryIndex = */ i * 2);
-#endif 
+            frame.cmd->WriteTimestamp(frame.drawcallTimestampQueries, grfx::PIPELINE_STAGE_TOP_OF_PIPE_BIT, /* queryIndex = */ i * 2);
+#endif
+        }
         if (pDebugViews->GetIndex() == static_cast<size_t>(DebugView::SHOW_DRAWCALLS)) {
             frame.cmd->PushGraphicsConstants(mSphere.pipelineInterface, kDebugColorPushConstantCount, &mColorsForDrawCalls[i]);
         }
@@ -1814,9 +1851,11 @@ void GraphicsBenchmarkApp::RecordCommandBufferSpheres(PerFrame& frame)
         uint32_t firstIndex = i * indicesPerDrawCall;
         frame.cmd->DrawIndexed(indexCount, /* instanceCount = */ 1, firstIndex);
 
+        if (currentViewIndex == 0) {
 #if defined(ENABLE_GPU_QUERIES)
-        frame.cmd->WriteTimestamp(frame.drawcallTimestampQueries, grfx::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, /* queryIndex = */ i * 2 + 1);
+            frame.cmd->WriteTimestamp(frame.drawcallTimestampQueries, grfx::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, /* queryIndex = */ i * 2 + 1);
 #endif
+        }
         frame.cmd->ForceBarrier();
     }
 }
