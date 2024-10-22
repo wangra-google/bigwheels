@@ -497,6 +497,7 @@ Result GraphicsPipeline::CreateApiObjects(const grfx::GraphicsPipelineCreateInfo
             pCreateInfo->multiViewState.viewMask,
             pCreateInfo->multiViewState.correlationMask,
             &renderPass,
+            pCreateInfo->forceBarrier,
             pCreateInfo->shadingRateMode);
         if (vkres != VK_SUCCESS) {
             PPX_ASSERT_MSG(false, "vk::CreateTransientRenderPass failed: " << ToString(vkres));

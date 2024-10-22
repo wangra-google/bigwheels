@@ -115,6 +115,8 @@ void FillOutGraphicsPipelineCreateInfo(
     pDstCreateInfo->VS = pSrcCreateInfo->VS;
     pDstCreateInfo->PS = pSrcCreateInfo->PS;
 
+    pDstCreateInfo->forceBarrier = pSrcCreateInfo->forceBarrier;
+
     // Vertex input
     {
         pDstCreateInfo->vertexInputState.bindingCount = pSrcCreateInfo->vertexInputState.bindingCount;

@@ -175,6 +175,7 @@ struct GraphicsPipelineCreateInfo
     grfx::MultiViewState           multiViewState     = {};
     const grfx::PipelineInterface* pPipelineInterface = nullptr;
     bool                           dynamicRenderPass  = false;
+    bool                           forceBarrier       = false;
 };
 
 struct GraphicsPipelineCreateInfo2
@@ -195,6 +196,7 @@ struct GraphicsPipelineCreateInfo2
     grfx::MultiViewState           multiViewState                     = {};
     const grfx::PipelineInterface* pPipelineInterface                 = nullptr;
     bool                           dynamicRenderPass                  = false;
+    bool                           forceBarrier                       = false;
 };
 
 namespace internal {

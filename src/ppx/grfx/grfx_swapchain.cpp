@@ -272,6 +272,7 @@ Result Swapchain::CreateRenderPasses()
 #endif
 
         grfx::RenderPassPtr renderPass;
+        rpCreateInfo.forceBarrier = true;
         auto                ppxres = GetDevice()->CreateRenderPass(&rpCreateInfo, &renderPass);
         if (Failed(ppxres)) {
             PPX_ASSERT_MSG(false, "grfx::Swapchain::CreateRenderPass(CLEAR) failed");

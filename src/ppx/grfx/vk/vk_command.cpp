@@ -852,6 +852,20 @@ void CommandBuffer::DrawIndexed(
     vk::CmdDrawIndexed(mCommandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
 }
 
+void CommandBuffer::ForceBarrier()
+{
+    VkMemoryBarrier memoryBarrier{};
+    memoryBarrier.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    memoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    memoryBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    vk::CmdPipelineBarrier(mCommandBuffer, 
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 
+        VK_DEPENDENCY_BY_REGION_BIT, 1, 
+        &memoryBarrier, 0, nullptr, 0, nullptr);
+}
+
 void CommandBuffer::Dispatch(
     uint32_t groupCountX,
     uint32_t groupCountY,

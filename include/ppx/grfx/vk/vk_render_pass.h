@@ -56,6 +56,7 @@ VkResult CreateTransientRenderPass(
     uint32_t              viewMask,
     uint32_t              correlationMask,
     VkRenderPass*         pRenderPass,
+    bool forceBarrier,
     grfx::ShadingRateMode shadingRateMode = grfx::SHADING_RATE_NONE);
 
 } // namespace vk

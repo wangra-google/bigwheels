@@ -108,6 +108,7 @@ RenderPassCreateInfo::RenderPassCreateInfo(const grfx::RenderPassCreateInfo& obj
     this->depthStencilState   = obj.depthStencilState;
     this->pShadingRatePattern = obj.pShadingRatePattern;
     this->multiViewState      = obj.multiViewState;
+    this->forceBarrier        = obj.forceBarrier;
 
     // Views
     for (uint32_t i = 0; i < this->renderTargetCount; ++i) {
@@ -129,6 +130,7 @@ RenderPassCreateInfo::RenderPassCreateInfo(const grfx::RenderPassCreateInfo2& ob
     this->height              = obj.height;
     this->renderTargetCount   = obj.renderTargetCount;
     this->pShadingRatePattern = obj.pShadingRatePattern;
+    this->forceBarrier        = obj.forceBarrier;
 
     // Formats
     for (uint32_t i = 0; i < this->renderTargetCount; ++i) {

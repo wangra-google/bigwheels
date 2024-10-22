@@ -116,13 +116,13 @@ Result RenderPass::CreateRenderPass(const grfx::internal::RenderPassCreateInfo* 
     subpassDescription.pPreserveAttachments    = nullptr;
 
     VkSubpassDependency subpassDependencies = {};
-    subpassDependencies.srcSubpass          = VK_SUBPASS_EXTERNAL;
+    subpassDependencies.srcSubpass          = pCreateInfo->forceBarrier ? 0 : VK_SUBPASS_EXTERNAL;
     subpassDependencies.dstSubpass          = 0;
-    subpassDependencies.srcStageMask        = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    subpassDependencies.srcStageMask        = pCreateInfo->forceBarrier ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
     subpassDependencies.dstStageMask        = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    subpassDependencies.srcAccessMask       = 0;
+    subpassDependencies.srcAccessMask       = pCreateInfo->forceBarrier ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0;
     subpassDependencies.dstAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    subpassDependencies.dependencyFlags     = 0;
+    subpassDependencies.dependencyFlags     = pCreateInfo->forceBarrier ? VK_DEPENDENCY_BY_REGION_BIT : 0;
 
     VkRenderPassCreateInfo vkci = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
     vkci.flags                  = 0;
@@ -293,6 +293,7 @@ VkResult CreateTransientRenderPass(
     uint32_t              viewMask,
     uint32_t              correlationMask,
     VkRenderPass*         pRenderPass,
+    bool                  forceBarrier,
     grfx::ShadingRateMode shadingRateMode)
 {
     bool hasDepthSencil = (depthStencilFormat != VK_FORMAT_UNDEFINED);
@@ -353,13 +354,13 @@ VkResult CreateTransientRenderPass(
     subpassDescription.pPreserveAttachments    = nullptr;
 
     VkSubpassDependency subpassDependencies = {};
-    subpassDependencies.srcSubpass          = VK_SUBPASS_EXTERNAL;
+    subpassDependencies.srcSubpass          = forceBarrier ? 0 : VK_SUBPASS_EXTERNAL;
     subpassDependencies.dstSubpass          = 0;
-    subpassDependencies.srcStageMask        = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    subpassDependencies.srcStageMask        = forceBarrier ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
     subpassDependencies.dstStageMask        = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    subpassDependencies.srcAccessMask       = 0;
+    subpassDependencies.srcAccessMask       = forceBarrier ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0;
     subpassDependencies.dstAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    subpassDependencies.dependencyFlags     = 0;
+    subpassDependencies.dependencyFlags     = forceBarrier ? VK_DEPENDENCY_BY_REGION_BIT : 0;
 
     VkRenderPassCreateInfo vkci = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
     vkci.flags                  = 0;

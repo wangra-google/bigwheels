@@ -133,6 +133,8 @@ public:
         int32_t  vertexOffset,
         uint32_t firstInstance) override;
 
+    virtual void ForceBarrier() override;
+
     virtual void Dispatch(
         uint32_t groupCountX,
         uint32_t groupCountY,

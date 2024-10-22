@@ -37,6 +37,8 @@ struct RenderPassCreateInfo
     grfx::RenderTargetClearValue renderTargetClearValues[PPX_MAX_RENDER_TARGETS] = {};
     grfx::DepthStencilClearValue depthStencilClearValue                          = {};
     grfx::Ownership              ownership                                       = grfx::OWNERSHIP_REFERENCE;
+    bool                         forceBarrier                                    = false;
+
 
     // If `pShadingRatePattern` is not null, then the pipeline targeting this
     // RenderPass must use the same shading rate mode
@@ -77,6 +79,7 @@ struct RenderPassCreateInfo2
     grfx::ResourceState          renderTargetInitialStates[PPX_MAX_RENDER_TARGETS] = {grfx::RESOURCE_STATE_UNDEFINED};
     grfx::ResourceState          depthStencilInitialState                          = grfx::RESOURCE_STATE_UNDEFINED;
     grfx::Ownership              ownership                                         = grfx::OWNERSHIP_REFERENCE;
+    bool                         forceBarrier                                      = false;
 
     // If `pShadingRatePattern` is not null, then the pipeline targeting this
     // RenderPass must use the same shading rate mode
@@ -184,6 +187,7 @@ struct RenderPassCreateInfo
     grfx::AttachmentStoreOp depthStoreOp                                 = grfx::ATTACHMENT_STORE_OP_STORE;
     grfx::AttachmentLoadOp  stencilLoadOp                                = grfx::ATTACHMENT_LOAD_OP_LOAD;
     grfx::AttachmentStoreOp stencilStoreOp                               = grfx::ATTACHMENT_STORE_OP_STORE;
+    bool                    forceBarrier                                 = false;
 
     RenderPassCreateInfo() {}
     RenderPassCreateInfo(const grfx::RenderPassCreateInfo& obj);
