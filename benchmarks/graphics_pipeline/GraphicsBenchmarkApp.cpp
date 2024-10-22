@@ -19,6 +19,8 @@
 #include "ppx/grfx/grfx_format.h"
 #include "ppx/timer.h"
 
+#define ENABLE_GPU_QUERIES
+
 using namespace ppx;
 
 static constexpr size_t SKYBOX_UNIFORM_BUFFER_REGISTER = 0;
@@ -48,7 +50,7 @@ void GraphicsBenchmarkApp::InitKnobs()
     PPX_ASSERT_MSG(!cl_options.HasExtraOption("vs-shader-index"), "--vs-shader-index flag has been replaced, instead use --vs and specify the name of the vertex shader");
     PPX_ASSERT_MSG(!cl_options.HasExtraOption("ps-shader-index"), "--ps-shader-index flag has been replaced, instead use --ps and specify the name of the pixel shader");
 
-    GetKnobManager().InitKnob(&pEnableSkyBox, "enable-skybox", true);
+    GetKnobManager().InitKnob(&pEnableSkyBox, "enable-skybox", false);
     pEnableSkyBox->SetDisplayName("Enable SkyBox");
     pEnableSkyBox->SetFlagDescription("Enable the SkyBox in the scene.");
 
@@ -66,7 +68,7 @@ void GraphicsBenchmarkApp::InitKnobs()
     pKnobVs->SetFlagDescription("Select the vertex shader for the graphics pipeline.");
     pKnobVs->SetIndent(1);
 
-    GetKnobManager().InitKnob(&pKnobPs, "ps", 0, kAvailablePsShaders);
+    GetKnobManager().InitKnob(&pKnobPs, "ps", 2, kAvailablePsShaders);
     pKnobPs->SetDisplayName("Pixel Shader");
     pKnobPs->SetFlagDescription("Select the pixel shader for the graphics pipeline.");
     pKnobPs->SetIndent(1);
@@ -96,7 +98,7 @@ void GraphicsBenchmarkApp::InitKnobs()
     pSphereInstanceCount->SetFlagDescription("Select the number of spheres to draw on the screen.");
     pSphereInstanceCount->SetIndent(1);
 
-    GetKnobManager().InitKnob(&pDrawCallCount, "drawcall-count", /* defaultValue = */ 1, /* minValue = */ 1, kMaxSphereInstanceCount);
+    GetKnobManager().InitKnob(&pDrawCallCount, "drawcall-count", /* defaultValue = */ 2, /* minValue = */ 1, kMaxSphereInstanceCount);
     pDrawCallCount->SetDisplayName("DrawCall Count");
     pDrawCallCount->SetFlagDescription("Select the number of draw calls to be used to draw the `--sphere-count` spheres.");
     pDrawCallCount->SetIndent(1);
@@ -177,8 +179,12 @@ void GraphicsBenchmarkApp::InitKnobs()
 
 void GraphicsBenchmarkApp::Config(ppx::ApplicationSettings& settings)
 {
-    settings.appName                    = "graphics_pipeline";
-    settings.enableImGui                = true;
+    settings.appName = "graphics_pipeline";
+#if defined(PPX_ANDROID)
+    settings.enableImGui = true;
+#else
+    settings.enableImGui = true;
+#endif
     settings.window.width               = 1920;
     settings.window.height              = 1080;
     settings.grfx.api                   = kApi;
@@ -187,7 +193,11 @@ void GraphicsBenchmarkApp::Config(ppx::ApplicationSettings& settings)
 #if defined(PPX_BUILD_XR)
     // XR specific settings
     settings.grfx.pacedFrameRate = 0;
-    settings.xr.enable           = false; // Change this to true to enable the XR mode
+#if defined(PPX_ANDROID)
+    settings.xr.enable = true;
+#else
+    settings.xr.enable = false; // Change this to true to enable the XR mode on PC.
+#endif
 #endif
     settings.standardKnobsDefaultValue.enableMetrics        = true;
     settings.standardKnobsDefaultValue.overwriteMetricsFile = true;
@@ -293,6 +303,23 @@ void GraphicsBenchmarkApp::Setup()
         OffscreenFrame frame = {};
         PPX_CHECKED_CALL(CreateOffscreenFrame(frame, RenderFormat(), GetSwapchain()->GetDepthFormat(), GetSwapchain()->GetWidth(), GetSwapchain()->GetHeight()));
         mOffscreenFrame.push_back(frame);
+    }
+
+    {
+#if defined(ENABLE_GPU_QUERIES)
+
+        for (auto& frame : mPerFrame)
+        {
+            // Timestamp query
+            grfx::QueryCreateInfo queryCreateInfo = {};
+            queryCreateInfo.type                  = grfx::QUERY_TYPE_TIMESTAMP;
+            queryCreateInfo.count                 = kMaxSphereInstanceCount * 2;
+            PPX_CHECKED_CALL(GetDevice()->CreateQuery(&queryCreateInfo, &frame.drawcallTimestampQueries));
+
+            queryCreateInfo.count = 2;
+            PPX_CHECKED_CALL(GetDevice()->CreateQuery(&queryCreateInfo, &frame.renderpassTimestampQueries));
+        }
+#endif
     }
 }
 
@@ -699,6 +726,7 @@ Result GraphicsBenchmarkApp::CompilePipeline(const SpherePipelineKey& key)
     gpCreateInfo.outputState.renderTargetFormats[0] = key.renderFormat;
     gpCreateInfo.outputState.depthStencilFormat     = GetSwapchain()->GetDepthFormat();
     gpCreateInfo.pPipelineInterface                 = mSphere.pipelineInterface;
+    gpCreateInfo.forceBarrier                       = true;
 
     grfx::GraphicsPipelinePtr pipeline = nullptr;
     Result                    ppxres   = GetDevice()->CreateGraphicsPipeline(&gpCreateInfo, &pipeline);
@@ -904,6 +932,12 @@ void GraphicsBenchmarkApp::ProcessKnobs()
     if (sphereChanged || quadChanged || framebufferChanged) {
         mGpuWorkDuration.ClearHistory();
         mCPUSubmissionTime.ClearHistory();
+
+        mGpuRenderPassWorkDuration.ClearHistory();
+        for (uint32_t i = 0; i < kMaxSphereInstanceCount; ++i)
+        {
+            mGpuDrawcallWorkDuration[i].ClearHistory();
+        }
 
         mSkipRecordBandwidthMetricFrameCounter = kSkipFrameCount;
     }
@@ -1111,6 +1145,28 @@ void GraphicsBenchmarkApp::Render()
     // Reset query
     frame.timestampQuery->Reset(/* firstQuery= */ 0, frame.timestampQuery->GetCount());
 
+    // drawcall/renderpass queries
+#if defined(ENABLE_GPU_QUERIES)
+    {
+        uint64_t drawcallTimestamps[kMaxSphereInstanceCount * 2];
+        uint64_t renderpassTimestamps[2] = {0, 0};
+        if (GetFrameCount() > 0) {
+            PPX_CHECKED_CALL(frame.drawcallTimestampQueries->GetData(drawcallTimestamps, sizeof(drawcallTimestamps)));
+
+            uint32_t currentDrawCallCount = pDrawCallCount->GetValue();
+            for (uint32_t i = 0; i < currentDrawCallCount; ++i)
+            {
+                mGpuDrawcallWorkDuration[i].Update(drawcallTimestamps[i * 2 + 1] - drawcallTimestamps[i * 2]);
+            }
+            PPX_CHECKED_CALL(frame.renderpassTimestampQueries->GetData(renderpassTimestamps, sizeof(renderpassTimestamps)));
+            mGpuRenderPassWorkDuration.Update(renderpassTimestamps[1] - renderpassTimestamps[0]);
+        }
+        frame.drawcallTimestampQueries->Reset(/* firstQuery= */ 0, frame.drawcallTimestampQueries->GetCount());
+        frame.renderpassTimestampQueries->Reset(/* firstQuery= */ 0, frame.renderpassTimestampQueries->GetCount());
+    }
+#endif
+
+
     // Update scene data
 
     const Camera& camera                 = GetCamera();
@@ -1179,7 +1235,12 @@ void GraphicsBenchmarkApp::UpdateGUI()
     if (IsXrEnabled()) {
         ImVec2 lastImGuiWindowSize = ImGui::GetWindowSize();
         // For XR, force the diagnostic window to the center with automatic sizing for legibility and since control is limited.
+        // TODO(wangra):change me!!!
+#if defined(PPX_ANDROID)
+        ImGui::SetNextWindowPos({400.f, 400.f}, ImGuiCond_FirstUseEver, {0.0f, 0.0f});
+#else
         ImGui::SetNextWindowPos({(GetUIWidth() - lastImGuiWindowSize.x) / 2, (GetUIHeight() - lastImGuiWindowSize.y) / 2}, ImGuiCond_FirstUseEver, {0.0f, 0.0f});
+#endif
         ImGui::SetNextWindowSize({512, 512}, ImGuiCond_FirstUseEver);
     }
 #endif
@@ -1241,6 +1302,31 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
     ImGui::NextColumn();
     ImGui::Text("%.4f ms\n%.4f%s%.4f ms", gpuWorkDurationInMs, gpuWorkDurationAvgInMs, kUTF8PlusMinus, gpuWorkDurationStdInMs);
     ImGui::NextColumn();
+
+#if defined(ENABLE_GPU_QUERIES)
+    {
+        uint32_t currentDrawCallCount = pDrawCallCount->GetValue();
+        for (uint32_t i = 0; i < currentDrawCallCount; ++i)
+        {
+            const float gpuWorkDurationInMs    = msPerTick * mGpuDrawcallWorkDuration[i].Value();
+            const float gpuWorkDurationAvgInMs = msPerTick * mGpuDrawcallWorkDuration[i].Mean();
+            const float gpuWorkDurationStdInMs = msPerTick * mGpuDrawcallWorkDuration[i].Std();
+            ImGui::Text("GPU Drawcall Work Duration");
+            ImGui::NextColumn();
+            ImGui::Text("%.4f ms\n%.4f%s%.4f ms", gpuWorkDurationInMs, gpuWorkDurationAvgInMs, kUTF8PlusMinus, gpuWorkDurationStdInMs);
+            ImGui::NextColumn();
+        }
+
+        const float gpuWorkDurationInMs    = msPerTick * mGpuRenderPassWorkDuration.Value();
+        const float gpuWorkDurationAvgInMs = msPerTick * mGpuRenderPassWorkDuration.Mean();
+        const float gpuWorkDurationStdInMs = msPerTick * mGpuRenderPassWorkDuration.Std();
+        ImGui::Text("GPU Render Pass Work Duration");
+        ImGui::NextColumn();
+        ImGui::Text("%.4f ms\n%.4f%s%.4f ms", gpuWorkDurationInMs, gpuWorkDurationAvgInMs, kUTF8PlusMinus, gpuWorkDurationStdInMs);
+        ImGui::NextColumn();
+    }
+#endif
+    
 
     const float gpuFPS    = 1.0f / (sPerTick * mGpuWorkDuration.Value());
     const float gpuAvgFPS = 1.0f / (sPerTick * mGpuWorkDuration.Mean());
@@ -1551,6 +1637,9 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
     bool renderScene = pEnableSkyBox->GetValue() || pEnableSpheres->GetValue();
     if (renderScene) {
         // Record commands for the scene using one renderpass
+#if defined(ENABLE_GPU_QUERIES)
+        frame.cmd->WriteTimestamp(frame.renderpassTimestampQueries, grfx::PIPELINE_STAGE_TOP_OF_PIPE_BIT, /* queryIndex = */ 0);
+#endif
         frame.cmd->BeginRenderPass(currentRenderPass);
         if (pEnableSkyBox->GetValue()) {
             RecordCommandBufferSkyBox(frame);
@@ -1559,6 +1648,9 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
             RecordCommandBufferSpheres(frame);
         }
         frame.cmd->EndRenderPass();
+#if defined(ENABLE_GPU_QUERIES)
+        frame.cmd->WriteTimestamp(frame.renderpassTimestampQueries, grfx::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, /* queryIndex = */ 1);
+#endif
     }
 
     // Record commands for the fullscreen quads using one/multiple renderpasses
@@ -1652,6 +1744,11 @@ void GraphicsBenchmarkApp::RecordCommandBuffer(PerFrame& frame, const RenderPass
     // Resolve queries
     frame.cmd->ResolveQueryData(frame.timestampQuery, /* startIndex= */ 0, frame.timestampQuery->GetCount());
 
+#if defined(ENABLE_GPU_QUERIES)
+    frame.cmd->ResolveQueryData(frame.drawcallTimestampQueries, /* startIndex= */ 0, frame.drawcallTimestampQueries->GetCount());
+    frame.cmd->ResolveQueryData(frame.renderpassTimestampQueries, /* startIndex= */ 0, frame.renderpassTimestampQueries->GetCount());
+#endif 
+
     PPX_CHECKED_CALL(frame.cmd->End());
 }
 
@@ -1702,6 +1799,9 @@ void GraphicsBenchmarkApp::RecordCommandBufferSpheres(PerFrame& frame)
     frame.cmd->PushGraphicsConstants(mSphere.pipelineInterface, kDebugColorPushConstantCount, &kDefaultDrawCallColor);
 
     for (uint32_t i = 0; i < currentDrawCallCount; i++) {
+#if defined(ENABLE_GPU_QUERIES)
+        frame.cmd->WriteTimestamp(frame.drawcallTimestampQueries, grfx::PIPELINE_STAGE_TOP_OF_PIPE_BIT, /* queryIndex = */ i * 2);
+#endif 
         if (pDebugViews->GetIndex() == static_cast<size_t>(DebugView::SHOW_DRAWCALLS)) {
             frame.cmd->PushGraphicsConstants(mSphere.pipelineInterface, kDebugColorPushConstantCount, &mColorsForDrawCalls[i]);
         }
@@ -1713,6 +1813,11 @@ void GraphicsBenchmarkApp::RecordCommandBufferSpheres(PerFrame& frame)
         }
         uint32_t firstIndex = i * indicesPerDrawCall;
         frame.cmd->DrawIndexed(indexCount, /* instanceCount = */ 1, firstIndex);
+
+#if defined(ENABLE_GPU_QUERIES)
+        frame.cmd->WriteTimestamp(frame.drawcallTimestampQueries, grfx::PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, /* queryIndex = */ i * 2 + 1);
+#endif
+        frame.cmd->ForceBarrier();
     }
 }
 

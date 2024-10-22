@@ -267,6 +267,10 @@ private:
         ppx::grfx::FencePtr    uiRenderCompleteFence;
 
         SceneData sceneData;
+
+
+        grfx::QueryPtr drawcallTimestampQueries;
+        grfx::QueryPtr renderpassTimestampQueries;
     };
 
     struct Entity
@@ -438,6 +442,8 @@ private:
     std::array<bool, TOTAL_KEY_COUNT> mPressedKeys         = {0};
     bool                              mEnableMouseMovement = true;
     RealtimeValue<uint64_t, float>    mGpuWorkDuration;
+    RealtimeValue<uint64_t, float>    mGpuDrawcallWorkDuration[kMaxSphereInstanceCount];
+    RealtimeValue<uint64_t, float>    mGpuRenderPassWorkDuration;
     grfx::SamplerPtr                  mLinearSampler;
     grfx::DescriptorPoolPtr           mDescriptorPool;
     std::vector<OffscreenFrame>       mOffscreenFrame;
